@@ -1,9 +1,9 @@
 import React, { useEffect } from 'react'
-import RNModuleTemplateModule, { Counter } from 'react-native-module-template'
+import RNShakeDetectorModule, { Counter } from 'react-native-shake-detector'
 
 const App = () => {
   useEffect(() => {
-    console.log(RNModuleTemplateModule)
+    console.log(RNShakeDetectorModule)
   })
 
   return <Counter />
