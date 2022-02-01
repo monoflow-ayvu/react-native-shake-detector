@@ -1,2 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.fernandomumbach.reactnativeshakedetector"></manifest>
+    package="com.fernandomumbach.reactnativeshakedetector">
+
+    <application>
+        <service
+            android:name=".ShakeService"
+            android:enabled="true"
+            android:exported="true"
+            android:stopWithTask="true"></service>
+    </application>
+
+</manifest>
