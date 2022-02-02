@@ -1,5 +1,6 @@
 import {
   Box,
+  Button,
   Divider,
   FormControl,
   Heading,
@@ -182,6 +183,9 @@ const App = () => {
 
             <View style={{ height: 30 }} />
             <Heading textAlign='center'>
+              Total: {magnitudes.filter((m) => m > 0).length}
+            </Heading>
+            <Heading textAlign='center'>
               Max: {Math.max(...magnitudes).toFixed(0)}%
             </Heading>
             <Heading textAlign='center'>
@@ -191,6 +195,15 @@ const App = () => {
               Min: {Math.min(...magnitudes).toFixed(0)}%
             </Heading>
           </Box>
+        </Box>
+
+        <View style={{ height: 30 }} />
+        <Box alignItems='center'>
+          <Button
+            onPress={() => setMagnitudes(new Array<number>(maxSamples).fill(0))}
+          >
+            Reset
+          </Button>
         </Box>
 
         <View style={{ height: 100 }} />
