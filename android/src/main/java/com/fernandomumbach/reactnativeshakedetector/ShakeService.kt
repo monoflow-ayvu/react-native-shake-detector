@@ -7,8 +7,8 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.IBinder
-import android.widget.Toast
-import com.facebook.infer.annotation.Assertions
+import android.util.Log
+import kotlin.math.pow
 import kotlin.math.sqrt
 
 
@@ -42,29 +42,34 @@ class ShakeService : Service(), SensorEventListener {
         mSensorManager!!.unregisterListener(this)
 
         intent?.let {
+            Log.d(LOG_TAG, "Setting service config via Intent")
             MAX_SAMPLES = intent.getIntExtra(ShakeServiceConstants.EXTRA_CONFIG_MAX_SAMPLES, 25)
+            Log.d(LOG_TAG, "MAX_SAMPLES: $MAX_SAMPLES")
             MIN_TIME_BETWEEN_SAMPLES_MS = intent.getIntExtra(ShakeServiceConstants.EXTRA_CONFIG_MIN_TIME_BETWEEN_SAMPLES_MS, 20)
+            Log.d(LOG_TAG, "MIN_TIME_BETWEEN_SAMPLES_MS: $MIN_TIME_BETWEEN_SAMPLES_MS")
             VISIBLE_TIME_RANGE_MS = intent.getIntExtra(ShakeServiceConstants.EXTRA_CONFIG_VISIBLE_TIME_RANGE_MS, 500)
+            Log.d(LOG_TAG, "VISIBLE_TIME_RANGE_MS: $VISIBLE_TIME_RANGE_MS")
             MAGNITUDE_THRESHOLD = intent.getIntExtra(ShakeServiceConstants.EXTRA_CONFIG_MAGNITUDE_THRESHOLD, 25)
+            Log.d(LOG_TAG, "MAGNITUDE_THRESHOLD: $MAGNITUDE_THRESHOLD")
             PERCENT_OVER_THRESHOLD_FOR_SHAKE = intent.getIntExtra(ShakeServiceConstants.EXTRA_CONFIG_PERCENT_OVER_THRESHOLD_FOR_SHAKE, 66)
+            Log.d(LOG_TAG, "PERCENT_OVER_THRESHOLD_FOR_SHAKE: $PERCENT_OVER_THRESHOLD_FOR_SHAKE")
         }
 
+        mLastTimestamp = -1
+        mCurrentIndex = 0
         mMagnitudes = DoubleArray(MAX_SAMPLES)
         mTimestamps = LongArray(MAX_SAMPLES)
 
         mSensorManager!!.registerListener(
             this,
             mSensorManager!!.getDefaultSensor(Sensor.TYPE_ACCELEROMETER),
-            SensorManager.SENSOR_DELAY_GAME
+            SensorManager.SENSOR_DELAY_FASTEST
         )
 
         return START_STICKY
     }
 
     override fun onCreate() {
-        mSensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
-
-        Toast.makeText(this, "Service Started", Toast.LENGTH_LONG).show()
         mSensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
     }
 
@@ -92,25 +97,24 @@ class ShakeService : Service(), SensorEventListener {
             val ax: Float = se.values[0]
             val ay: Float = se.values[1]
             val az: Float = se.values[2]
+            val evTimeMillis = se.timestamp / 1_000_000L
 
-            mLastTimestamp = se.timestamp
-            mTimestamps[mCurrentIndex] = se.timestamp
-            mMagnitudes[mCurrentIndex] = sqrt((ax * ax + ay * ay + az * az).toDouble())
+            mLastTimestamp = evTimeMillis
+            mTimestamps[mCurrentIndex] = evTimeMillis
+            mMagnitudes[mCurrentIndex] = sqrt(ax.pow(2) + ay.pow(2) + az.pow(2)).toDouble()
 
-            maybeDispatchShake(se.timestamp)
+            maybeDispatchShake(evTimeMillis)
 
             mCurrentIndex = (mCurrentIndex + 1) % MAX_SAMPLES
         }
     }
 
     private fun maybeDispatchShake(currentTimestamp: Long) {
-        Assertions.assertNotNull(mTimestamps)
-        Assertions.assertNotNull<Any>(mMagnitudes)
         var numOverThreshold = 0
         var total = 0
         for (i in 0 until MAX_SAMPLES) {
             val index = (mCurrentIndex - i + MAX_SAMPLES) % MAX_SAMPLES
-            if (currentTimestamp - mTimestamps[index] < VISIBLE_TIME_RANGE_MS) {
+            if (currentTimestamp - mTimestamps[index] <= VISIBLE_TIME_RANGE_MS) {
                 total++
                 if (mMagnitudes[index] >= MAGNITUDE_THRESHOLD) {
                     numOverThreshold++
@@ -119,7 +123,7 @@ class ShakeService : Service(), SensorEventListener {
         }
 
         val percentOverThreshold = numOverThreshold.toDouble() / total
-        if (percentOverThreshold > PERCENT_OVER_THRESHOLD_FOR_SHAKE / 100.0) {
+        if (total > 1 && percentOverThreshold > PERCENT_OVER_THRESHOLD_FOR_SHAKE / 100.0) {
             val senderIntent = Intent()
             senderIntent.action = ShakeServiceConstants.ACTION_SHAKE
             senderIntent.putExtra(ShakeServiceConstants.EXTRA_PERCENT_OVER_THRESHOLD, percentOverThreshold)

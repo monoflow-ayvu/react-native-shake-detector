@@ -26,7 +26,7 @@ const App = () => {
       console.info('shake', ev)
     })
 
-    start()
+    start(50, 1000 * 5, 500, 25, 66)
       .then(() => console.log('service started!'))
       .catch((e: Error) => console.error(e))
   })
