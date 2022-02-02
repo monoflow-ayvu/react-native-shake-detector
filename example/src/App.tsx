@@ -87,9 +87,9 @@ const App = () => {
   )
 
   useEffect(() => {
-    const listener = Shaker.onShake((ev) =>
+    const listener = Shaker.onShake((ev) => {
       onMagnitude(ev.percentOverThreshold * 100)
-    )
+    })
     setLoading(true)
 
     Shaker.start(
