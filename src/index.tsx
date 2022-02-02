@@ -1,26 +1,33 @@
-import * as React from 'react'
-import { Button, NativeModules, StyleSheet, Text, View } from 'react-native'
+import {
+  DeviceEventEmitter,
+  EmitterSubscription,
+  NativeModules,
+} from 'react-native'
 
-export const addOne = (input: number) => input + 1
+const RNShakeDetectorModule = NativeModules.RNShakeDetectorModule
 
-export const Counter = () => {
-  const [count, setCount] = React.useState(0)
-
-  return (
-    <View style={styles.container}>
-      <Text>You pressed {count} times</Text>
-      <Button onPress={() => setCount(addOne(count))} title='Press Me' />
-    </View>
+export function start(
+  maxSamples = 25,
+  minTimeBetweenSamplesMs = 20,
+  visibleTimeRangeMs = 500,
+  magnitudeThreshold = 25,
+  percentOverThresholdForShake = 66
+): Promise<boolean> {
+  return RNShakeDetectorModule.start(
+    maxSamples,
+    minTimeBetweenSamplesMs,
+    visibleTimeRangeMs,
+    magnitudeThreshold,
+    percentOverThresholdForShake
   )
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 200,
-  },
-})
+export function stop(): Promise<boolean> {
+  return RNShakeDetectorModule.stop()
+}
 
-export default NativeModules.RNShakeDetectorModule
+export function onShake(
+  callback: (ev: { percentOverThreshold: number }) => void
+): EmitterSubscription {
+  return DeviceEventEmitter.addListener('shake', callback)
+}
