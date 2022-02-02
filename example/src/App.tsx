@@ -136,7 +136,7 @@ const App = () => {
             cb={setMinTimeBetweenSamplesMs}
             name='Tiempo mínimo entre muestreos (milisegundos)'
             min={10}
-            max={20_000}
+            max={20 * 1000}
             step={10}
             help='Tiempo mínimo a esperar para tomar un nuevo valor del acelerómetro'
           />
@@ -145,7 +145,7 @@ const App = () => {
             cb={setVisibleTimeRangeMs}
             name='Rango de tiempo visible (milisegundos)'
             min={10}
-            max={5_000}
+            max={5 * 1000}
             step={10}
             help='Tiempo máximo a considerar un valor como parte del histórico (si se supera, el valor es ignorado al calcular colisión)'
           />
