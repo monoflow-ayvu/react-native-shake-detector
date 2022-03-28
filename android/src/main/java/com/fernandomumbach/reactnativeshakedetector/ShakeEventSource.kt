@@ -1,22 +1,23 @@
 package com.fernandomumbach.reactnativeshakedetector
 
+import android.content.Context
 import android.hardware.Sensor
 import android.hardware.SensorManager
+import java.util.concurrent.TimeUnit
 import android.util.Log
-import com.facebook.react.bridge.Arguments
-import com.facebook.react.bridge.ReactApplicationContext
-import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.gvillani.rxsensors.RxSensor
 import com.gvillani.rxsensors.RxSensorEvent
 import com.gvillani.rxsensors.RxSensorFilter
 import io.reactivex.BackpressureOverflowStrategy
-import io.reactivex.disposables.Disposable
+import io.reactivex.Flowable
 import io.reactivex.schedulers.Schedulers
 import kotlin.math.pow
 import kotlin.math.sqrt
 
+class ShakeEvent(val magnitude: Double)
+
 class ShakeEventSource(
-    reactContext: ReactApplicationContext,
+    ctx: Context,
     private val maxSamples: Long = 25,
     private val minTimeBetweenSamplesMs: Int = 20,
     private val visibleTimeRangeMs: Int = 500,
@@ -24,17 +25,14 @@ class ShakeEventSource(
     private val percentOverThresholdForShake: Int = 66
 ) {
     private val TAG = javaClass.simpleName
-    private val mReactContext: ReactApplicationContext = reactContext
-    private val ctx = reactContext.applicationContext
     private var mLastTimestamp: Long = -1
     private var mCurrentIndex = 0
     private var mMagnitudes = DoubleArray(maxSamples.toInt())
     private var mTimestamps = LongArray(maxSamples.toInt())
-
-    private val disposable: Disposable = RxSensor
+    private val flowable: Flowable<ShakeEvent> = RxSensor
         .sensorEvent(ctx, Sensor.TYPE_ACCELEROMETER, SensorManager.SENSOR_DELAY_FASTEST)
         .subscribeOn(Schedulers.computation())
-        .filter(RxSensorFilter.minAccuracy(SensorManager.SENSOR_STATUS_ACCURACY_HIGH))
+        .filter(RxSensorFilter.minAccuracy(SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM))
         .onBackpressureBuffer(
             maxSamples,
             { Log.w(TAG, "dropped item!") },
@@ -44,16 +42,16 @@ class ShakeEventSource(
         .filter {
             return@filter it.sensor.type == Sensor.TYPE_ACCELEROMETER
         }
+        .flatMap { return@flatMap process(it) }
+        // max one event per second
+        .debounce(1, TimeUnit.SECONDS)
         .observeOn(Schedulers.computation())
-        .subscribe { sub -> process(sub) }
+        .share()
 
-    fun stop() {
-        return this.disposable.dispose()
-    }
 
-    private fun process(se: RxSensorEvent) {
+    private fun process(se: RxSensorEvent): Flowable<ShakeEvent> {
         if (se.timestamp - mLastTimestamp < minTimeBetweenSamplesMs) {
-            return
+            return Flowable.empty()
         }
 
         val ax: Float = se.values[0]
@@ -65,11 +63,17 @@ class ShakeEventSource(
         mTimestamps[mCurrentIndex] = evTimeMillis
         mMagnitudes[mCurrentIndex] = sqrt(ax.pow(2) + ay.pow(2) + az.pow(2)).toDouble()
 
-        maybeDispatchShake(evTimeMillis)
+        val evt = maybeDispatchShake(evTimeMillis)
         mCurrentIndex = ((mCurrentIndex + 1) % maxSamples).toInt()
+
+        if (evt == null) {
+            return Flowable.empty()
+        } else {
+            return Flowable.just(evt)
+        }
     }
 
-    private fun maybeDispatchShake(currentTimestamp: Long) {
+    private fun maybeDispatchShake(currentTimestamp: Long): ShakeEvent? {
         var numOverThreshold = 0
         var total = 0
         for (i in 0 until maxSamples) {
@@ -84,14 +88,13 @@ class ShakeEventSource(
 
         val percentOverThreshold = numOverThreshold.toDouble() / total
         if (total > 1 && percentOverThreshold > percentOverThresholdForShake / 100.0) {
-            val ev = Arguments.createMap()
-            ev.putDouble("percentOverThreshold", percentOverThreshold)
-
-            if (mReactContext.hasActiveReactInstance()) {
-                mReactContext
-                    .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                    .emit("shake", ev)
-            }
+            return ShakeEvent(percentOverThreshold)
         }
+
+        return null
+    }
+
+    fun stream(): Flowable<ShakeEvent> {
+        return flowable
     }
 }

@@ -1,11 +1,18 @@
 package com.fernandomumbach.reactnativeshakedetector
 
+import android.content.Context
+import android.util.Log
 import com.facebook.react.bridge.*
+import com.facebook.react.modules.core.DeviceEventManagerModule
+import io.reactivex.disposables.Disposable
+import java.util.concurrent.atomic.AtomicReference
 
-class RNShakeDetectorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext), LifecycleEventListener {
+class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
+    ReactContextBaseJavaModule(reactContext), LifecycleEventListener {
     private val TAG = "RNShakeDetectorModule"
     private var mReactContext: ReactApplicationContext = reactContext
-    private var shakeEventSource: ShakeEventSource? = null
+    private var mApplicationContext: Context = reactContext.applicationContext
+    private var shakeEvents: AtomicReference<Disposable?> = AtomicReference(null)
 
     override fun getName() = TAG
 
@@ -18,17 +25,14 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) : ReactContex
         percentOverThresholdForShake: Int,
         promise: Promise
     ) {
-        this.shakeEventSource?.stop()
-        this.shakeEventSource = null
-
+        Log.w(TAG, "Starting shake event detector")
         try {
-            this.shakeEventSource = ShakeEventSource(
-                mReactContext,
-                maxSamples.toLong(),
+            internalStart(
+                maxSamples,
                 minTimeBetweenSamplesMs,
                 visibleTimeRangeMs,
                 magnitudeThreshold,
-                percentOverThresholdForShake
+                percentOverThresholdForShake,
             )
         } catch (e: Exception) {
             promise.reject("Could not start ShakeService", e)
@@ -38,8 +42,7 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) : ReactContex
     @ReactMethod
     fun stop(promise: Promise) {
         try {
-            this.shakeEventSource?.stop()
-            this.shakeEventSource = null
+            internalStop()
             promise.resolve(true)
         } catch (e: Exception) {
             promise.reject("Could not stop ShakeService", e)
@@ -55,7 +58,53 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) : ReactContex
     }
 
     override fun onHostDestroy() {
-        this.shakeEventSource?.stop()
-        this.shakeEventSource = null
+        internalStop()
+    }
+
+    private fun internalStart(
+        maxSamples: Int,
+        minTimeBetweenSamplesMs: Int,
+        visibleTimeRangeMs: Int,
+        magnitudeThreshold: Int,
+        percentOverThresholdForShake: Int,
+    ) {
+        internalStop()
+        Log.w(TAG, "Starting new ShakeEventSource")
+        val source = ShakeEventSource(
+            mApplicationContext,
+            maxSamples.toLong(),
+            minTimeBetweenSamplesMs,
+            visibleTimeRangeMs,
+            magnitudeThreshold,
+            percentOverThresholdForShake,
+        )
+        shakeEvents.set(source.stream().subscribe({
+            Log.w(TAG, "detected shake event! " + it.magnitude.toString())
+            onShakeEvent(it)
+        }, {
+            Log.e(TAG, it.toString())
+        }))
+    }
+
+    private fun internalStop() {
+        shakeEvents.get().let {
+            if (it?.isDisposed == false) {
+                it.dispose()
+            }
+            shakeEvents.set(null)
+        }
+    }
+
+    private fun onShakeEvent(sensorEvent: ShakeEvent) {
+        Log.w(TAG, "onShakeEvent " + sensorEvent.magnitude.toString())
+        mReactContext.let {
+            val ev = Arguments.createMap()
+            ev.putDouble("percentOverThreshold", sensorEvent.magnitude)
+            if (mReactContext.hasActiveReactInstance()) {
+                mReactContext
+                    .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                    .emit("shake", ev)
+            }
+        }
     }
 }
