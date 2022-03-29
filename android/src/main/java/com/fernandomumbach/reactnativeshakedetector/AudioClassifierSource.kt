@@ -4,27 +4,29 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.media.AudioRecord
-import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.util.Log
-import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import androidx.core.os.HandlerCompat
 import org.tensorflow.lite.task.audio.classifier.AudioClassifier
+import java.lang.Exception
 
-class AudioClassifierSource(ctx: Context) {
-    private val ctx = ctx
+class AudioClassifierSource(
+    private val ctx: Context,
+    private val cb: (MutableMap<String, Float>) -> Unit
+) {
     private val TAG = javaClass.simpleName
 
     companion object {
         const val MODEL_FILE = "yamnet.tflite"
         const val MINIMUM_DISPLAY_THRESHOLD = 0.3F
+        const val MAX_SAMPLES = 100L
     }
 
     private var audioClassifier: AudioClassifier? = null
     private var audioRecord: AudioRecord? = null
-    private var classificationInterval = 30L // how often should classification run in milli-secs
+    private var classificationInterval = 10L // how often should classification run in milli-secs
     private var handler: Handler // background thread handler to run classification
 
     init {
@@ -32,12 +34,6 @@ class AudioClassifierSource(ctx: Context) {
         val handlerThread = HandlerThread("backgroundThread")
         handlerThread.start()
         handler = HandlerCompat.createAsync(handlerThread.looper)
-
-        if (hasPermissions()) {
-            startAudioClassification()
-        } else {
-            throw Error("Audio classifier needs RECORD_AUDIO permission")
-        }
     }
 
     private fun hasPermissions(): Boolean {
@@ -52,9 +48,10 @@ class AudioClassifierSource(ctx: Context) {
         return false
     }
 
-    private fun startAudioClassification() {
-        // If the audio classifier is initialized and running, do nothing.
-        if (audioClassifier != null) return;
+    fun start() {
+        if (!hasPermissions()) {
+            throw Error("Audio classifier needs RECORD_AUDIO permission")
+        }
 
         // Initialize the audio classifier
         val classifier = AudioClassifier.createFromFile(ctx, MODEL_FILE)
@@ -66,7 +63,6 @@ class AudioClassifierSource(ctx: Context) {
 
         // Define the classification runnable
         val run = object : Runnable {
-            @RequiresApi(Build.VERSION_CODES.M)
             override fun run() {
                 val startTime = System.currentTimeMillis()
 
@@ -85,16 +81,17 @@ class AudioClassifierSource(ctx: Context) {
 
                 Log.d(TAG, "Latency = ${finishTime - startTime}ms")
 
+                val m = mutableMapOf<String, Float>()
                 filteredModelOutput.forEach {
-                    Log.d(TAG, "${it.displayName} = ${it.score * 100}%")
+                    m[it.label] = it.score
                 }
 
-//                // Updating the UI
-//                runOnUiThread {
-//                    probabilitiesAdapter.categoryList = filteredModelOutput
-//                    probabilitiesAdapter.notifyDataSetChanged()
-//                }
-//
+                try {
+                    cb(m)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error running callback", e)
+                }
+
                 // Rerun the classification after a certain interval
                 handler.postDelayed(this, classificationInterval)
             }
@@ -106,5 +103,16 @@ class AudioClassifierSource(ctx: Context) {
         // Save the instances we just created for use later
         audioClassifier = classifier
         audioRecord = record
+    }
+
+    fun stop() {
+        handler.removeCallbacksAndMessages(null)
+        try {
+            audioRecord?.release()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error stopping audio record", e)
+        }
+        audioRecord = null
+        audioClassifier = null
     }
 }

@@ -1,10 +1,7 @@
 package com.fernandomumbach.reactnativeshakedetector
 
-import android.Manifest
 import android.content.Context
-import android.content.pm.PackageManager
 import android.util.Log
-import androidx.appcompat.app.AppCompatActivity
 import com.facebook.react.bridge.*
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import io.reactivex.disposables.Disposable
@@ -16,7 +13,10 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
     private var mReactContext: ReactApplicationContext = reactContext
     private var mApplicationContext: Context = reactContext.applicationContext
     private var shakeEvents: AtomicReference<Disposable?> = AtomicReference(null)
-    private var classifier: AudioClassifierSource? = null
+    private var classifier: AudioClassifierSource = AudioClassifierSource(mApplicationContext) {
+        it.forEach { (k, v) -> Log.d(TAG, "--> $k = ${v * 100}%") }
+        Log.d(TAG, "=======")
+    }
 
     override fun getName() = TAG
 
@@ -32,10 +32,6 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
     ) {
         Log.w(TAG, "Starting shake event detector")
         try {
-            if (useAudioClassifier) {
-                initializeAudioClassifier()
-            }
-
             internalStart(
                 maxSamples,
                 minTimeBetweenSamplesMs,
@@ -50,6 +46,7 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
 
     @ReactMethod
     fun stop(promise: Promise) {
+        Log.w(TAG, "Stopping shake event detector")
         try {
             internalStop()
             promise.resolve(true)
@@ -70,11 +67,6 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
         internalStop()
     }
 
-    private fun initializeAudioClassifier() {
-        if (classifier != null) return
-        classifier = AudioClassifierSource(mApplicationContext)
-    }
-
     private fun internalStart(
         maxSamples: Int,
         minTimeBetweenSamplesMs: Int,
@@ -84,6 +76,12 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
         useClassifier: Boolean = true
     ) {
         internalStop()
+
+        if (useClassifier) {
+            Log.w(TAG, "initializeAudioClassifier")
+            classifier.start()
+        }
+
         Log.w(TAG, "Starting new ShakeEventSource")
         val source = ShakeEventSource(
             mApplicationContext,
@@ -102,6 +100,7 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
     }
 
     private fun internalStop() {
+        classifier.stop()
         shakeEvents.get().let {
             if (it?.isDisposed == false) {
                 it.dispose()
