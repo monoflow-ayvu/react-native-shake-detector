@@ -4,7 +4,9 @@ import android.content.Context
 import android.util.Log
 import com.facebook.react.bridge.*
 import com.facebook.react.modules.core.DeviceEventManagerModule
+import io.reactivex.BackpressureOverflowStrategy
 import io.reactivex.disposables.Disposable
+import io.reactivex.processors.PublishProcessor
 import java.util.concurrent.atomic.AtomicReference
 
 class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
@@ -13,12 +15,23 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
     private var mReactContext: ReactApplicationContext = reactContext
     private var mApplicationContext: Context = reactContext.applicationContext
     private var shakeEvents: AtomicReference<Disposable?> = AtomicReference(null)
-    private var classifier: AudioClassifierSource = AudioClassifierSource(mApplicationContext) {
-        it.forEach { (k, v) -> Log.d(TAG, "--> $k = ${v * 100}%") }
-        Log.d(TAG, "=======")
-    }
+    private var classifier: AudioClassifierSource
+    private var classifications = PublishProcessor.create<MutableMap<String, Float>>()
 
     override fun getName() = TAG
+
+    init {
+        classifier = AudioClassifierSource(mApplicationContext) {
+            classifications.offer(it)
+        }
+
+        val _drop = classifications.onBackpressureBuffer(100, {
+            Log.w(TAG, "classifications queue full!")
+        }, BackpressureOverflowStrategy.DROP_OLDEST).subscribe {
+            it.forEach { (k, v) -> Log.d(TAG, "(sub) --> $k = ${v * 100}%") }
+            Log.d(TAG, "=======")
+        }
+    }
 
     @ReactMethod
     fun start(
