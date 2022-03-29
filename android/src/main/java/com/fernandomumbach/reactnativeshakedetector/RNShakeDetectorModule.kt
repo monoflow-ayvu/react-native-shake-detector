@@ -1,7 +1,10 @@
 package com.fernandomumbach.reactnativeshakedetector
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.util.Log
+import androidx.appcompat.app.AppCompatActivity
 import com.facebook.react.bridge.*
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import io.reactivex.disposables.Disposable
@@ -13,6 +16,7 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
     private var mReactContext: ReactApplicationContext = reactContext
     private var mApplicationContext: Context = reactContext.applicationContext
     private var shakeEvents: AtomicReference<Disposable?> = AtomicReference(null)
+    private var classifier: AudioClassifierSource? = null
 
     override fun getName() = TAG
 
@@ -23,10 +27,15 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
         visibleTimeRangeMs: Int,
         magnitudeThreshold: Int,
         percentOverThresholdForShake: Int,
+        useAudioClassifier: Boolean = true,
         promise: Promise
     ) {
         Log.w(TAG, "Starting shake event detector")
         try {
+            if (useAudioClassifier) {
+                initializeAudioClassifier()
+            }
+
             internalStart(
                 maxSamples,
                 minTimeBetweenSamplesMs,
@@ -61,12 +70,18 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
         internalStop()
     }
 
+    private fun initializeAudioClassifier() {
+        if (classifier != null) return
+        classifier = AudioClassifierSource(mApplicationContext)
+    }
+
     private fun internalStart(
         maxSamples: Int,
         minTimeBetweenSamplesMs: Int,
         visibleTimeRangeMs: Int,
         magnitudeThreshold: Int,
         percentOverThresholdForShake: Int,
+        useClassifier: Boolean = true
     ) {
         internalStop()
         Log.w(TAG, "Starting new ShakeEventSource")

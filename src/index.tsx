@@ -11,14 +11,16 @@ export function start(
   minTimeBetweenSamplesMs = 20,
   visibleTimeRangeMs = 500,
   magnitudeThreshold = 25,
-  percentOverThresholdForShake = 66
+  percentOverThresholdForShake = 66,
+  useAudioClassifier = false
 ): Promise<boolean> {
   return RNShakeDetectorModule.start(
     maxSamples,
     minTimeBetweenSamplesMs,
     visibleTimeRangeMs,
     magnitudeThreshold,
-    percentOverThresholdForShake
+    percentOverThresholdForShake,
+    useAudioClassifier
   )
 }
 

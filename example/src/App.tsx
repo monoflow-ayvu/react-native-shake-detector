@@ -10,6 +10,7 @@ import {
   View,
 } from 'native-base'
 import React, { useEffect } from 'react'
+import { PermissionsAndroid } from 'react-native'
 import * as Shaker from 'react-native-shake-detector'
 const Sparkline: any = require('react-native-sparkline').default
 
@@ -93,13 +94,22 @@ const App = () => {
     })
     setLoading(true)
 
-    Shaker.start(
-      maxSamples,
-      minTimeBetweenSamplesMs,
-      visibleTimeRangeMs,
-      magnitudeThreshold,
-      percentOverThresholdForShake
-    )
+    PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO)
+      .then((granted) => {
+        if (!granted) {
+          throw new Error('Permission denied')
+        }
+      })
+      .then(() =>
+        Shaker.start(
+          maxSamples,
+          minTimeBetweenSamplesMs,
+          visibleTimeRangeMs,
+          magnitudeThreshold,
+          percentOverThresholdForShake,
+          true // use audio classifier
+        )
+      )
       .then(() => setLoading(false))
       .catch((e: Error) => console.error(e))
 
