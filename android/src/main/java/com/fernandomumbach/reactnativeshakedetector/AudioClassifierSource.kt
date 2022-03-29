@@ -64,7 +64,7 @@ class AudioClassifierSource(
         // Define the classification runnable
         val run = object : Runnable {
             override fun run() {
-                val startTime = System.currentTimeMillis()
+//                val startTime = System.currentTimeMillis()
 
                 // Load the latest audio sample
                 audioTensor.load(record)
@@ -77,9 +77,8 @@ class AudioClassifierSource(
                     -it.score
                 }
 
-                val finishTime = System.currentTimeMillis()
-
-                Log.d(TAG, "Latency = ${finishTime - startTime}ms")
+//                val finishTime = System.currentTimeMillis()
+//                Log.d(TAG, "Latency = ${finishTime - startTime}ms")
 
                 val m = mutableMapOf<String, Float>()
                 filteredModelOutput.forEach {

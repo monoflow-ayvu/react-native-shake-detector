@@ -7,6 +7,7 @@ import com.facebook.react.modules.core.DeviceEventManagerModule
 import io.reactivex.BackpressureOverflowStrategy
 import io.reactivex.disposables.Disposable
 import io.reactivex.processors.PublishProcessor
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
 class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
@@ -27,10 +28,28 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
 
         val _drop = classifications.onBackpressureBuffer(100, {
             Log.w(TAG, "classifications queue full!")
-        }, BackpressureOverflowStrategy.DROP_OLDEST).subscribe {
-            it.forEach { (k, v) -> Log.d(TAG, "(sub) --> $k = ${v * 100}%") }
-            Log.d(TAG, "=======")
-        }
+        }, BackpressureOverflowStrategy.DROP_OLDEST)
+            .buffer(5, TimeUnit.SECONDS)
+            .map {
+                val m = mutableMapOf<String, Float>()
+                it.forEach {
+                    it.forEach { (k, v) ->
+                        if (!m.containsKey(k)) {
+                            m.set(k, v)
+                        }
+
+                        if (v > m[k]!!) {
+                            m[k] = v
+                        }
+                    }
+                }
+
+                return@map m
+            }
+            .subscribe {
+                it.forEach { (k, v) -> Log.d(TAG, "(sub) --> $k = ${v * 100}%") }
+                Log.d(TAG, "=======")
+            }
     }
 
     @ReactMethod
