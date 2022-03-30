@@ -7,17 +7,26 @@ import com.facebook.react.modules.core.DeviceEventManagerModule
 import io.reactivex.BackpressureOverflowStrategy
 import io.reactivex.disposables.Disposable
 import io.reactivex.processors.PublishProcessor
+import io.reactivex.schedulers.Schedulers
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
 class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext), LifecycleEventListener {
     private val TAG = "RNShakeDetectorModule"
+    private val shakeEvents: AtomicReference<Disposable?> = AtomicReference(null)
     private var mReactContext: ReactApplicationContext = reactContext
     private var mApplicationContext: Context = reactContext.applicationContext
-    private var shakeEvents: AtomicReference<Disposable?> = AtomicReference(null)
     private var classifier: AudioClassifierSource
     private var classifications = PublishProcessor.create<MutableMap<String, Float>>()
+    private var classificationPipeline = classifications.onBackpressureBuffer(100, {
+        Log.w(TAG, "classifications queue full!")
+    }, BackpressureOverflowStrategy.DROP_OLDEST)
+        .observeOn(Schedulers.computation())
+        .buffer(3, TimeUnit.SECONDS)
+        .map { items -> reduceClassificationsToMap(items) }
+        .onBackpressureDrop()
+        .share()
 
     override fun getName() = TAG
 
@@ -25,31 +34,6 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
         classifier = AudioClassifierSource(mApplicationContext) {
             classifications.offer(it)
         }
-
-        val _drop = classifications.onBackpressureBuffer(100, {
-            Log.w(TAG, "classifications queue full!")
-        }, BackpressureOverflowStrategy.DROP_OLDEST)
-            .buffer(5, TimeUnit.SECONDS)
-            .map {
-                val m = mutableMapOf<String, Float>()
-                it.forEach {
-                    it.forEach { (k, v) ->
-                        if (!m.containsKey(k)) {
-                            m.set(k, v)
-                        }
-
-                        if (v > m[k]!!) {
-                            m[k] = v
-                        }
-                    }
-                }
-
-                return@map m
-            }
-            .subscribe {
-                it.forEach { (k, v) -> Log.d(TAG, "(sub) --> $k = ${v * 100}%") }
-                Log.d(TAG, "=======")
-            }
     }
 
     @ReactMethod
@@ -59,7 +43,7 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
         visibleTimeRangeMs: Int,
         magnitudeThreshold: Int,
         percentOverThresholdForShake: Int,
-        useAudioClassifier: Boolean = true,
+        useAudioClassifier: Boolean = false,
         promise: Promise
     ) {
         Log.w(TAG, "Starting shake event detector")
@@ -70,6 +54,7 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
                 visibleTimeRangeMs,
                 magnitudeThreshold,
                 percentOverThresholdForShake,
+                useAudioClassifier,
             )
         } catch (e: Exception) {
             promise.reject("Could not start ShakeService", e)
@@ -105,7 +90,7 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
         visibleTimeRangeMs: Int,
         magnitudeThreshold: Int,
         percentOverThresholdForShake: Int,
-        useClassifier: Boolean = true
+        useClassifier: Boolean = false,
     ) {
         internalStop()
 
@@ -146,11 +131,36 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
         mReactContext.let {
             val ev = Arguments.createMap()
             ev.putDouble("percentOverThreshold", sensorEvent.magnitude)
+
+            Log.w(TAG, "before classification pipeline")
+            val currentValues = classificationPipeline.blockingLatest().first()
+            Log.w(TAG, "after classification pipeline $currentValues")
+            val values = Arguments.createMap()
+            currentValues.forEach { (k, v) -> values.putDouble(k, v.toDouble()) }
+            ev.putMap("classifications", values)
+
             if (mReactContext.hasActiveReactInstance()) {
                 mReactContext
                     .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
                     .emit("shake", ev)
             }
         }
+    }
+
+    private fun reduceClassificationsToMap(items: Iterable<MutableMap<String, Float>>): MutableMap<String, Float> {
+        val m = mutableMapOf<String, Float>()
+        items.forEach {
+            it.forEach { (k, v) ->
+                if (!m.containsKey(k)) {
+                    m[k] = v
+                }
+
+                if (v > m[k]!!) {
+                    m[k] = v
+                }
+            }
+        }
+
+        return m
     }
 }

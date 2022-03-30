@@ -29,7 +29,10 @@ export function stop(): Promise<boolean> {
 }
 
 export function onShake(
-  callback: (ev: { percentOverThreshold: number }) => void
+  callback: (ev: {
+    percentOverThreshold: number
+    classifications: Record<string, number>
+  }) => void
 ): EmitterSubscription {
   return DeviceEventEmitter.addListener('shake', callback)
 }
