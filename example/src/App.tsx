@@ -1,4 +1,5 @@
 /* eslint-disable react-native/no-inline-styles */
+import { Buffer } from 'buffer'
 import {
   Actionsheet,
   Box,
@@ -20,6 +21,7 @@ import {
 import React, { useEffect } from 'react'
 import { Alert, PermissionsAndroid } from 'react-native'
 import * as Shaker from 'react-native-shake-detector'
+import Share from 'react-native-share'
 
 type Config = {
   maxSamples: number
@@ -307,6 +309,33 @@ const App = () => {
     return orderedCollisions[0]
   }, [orderedCollisions])
 
+  const save = React.useCallback(async () => {
+    const csvData = Object.keys(orderedCollisions)
+      .map((v, i) => {
+        const item = orderedCollisions[i]
+        return [
+          item.at.toISOString(),
+          item.percentOverThreshold.toFixed(2),
+          ...Object.keys(item.classifications).map(
+            (k) => `"${k}=${item.classifications[k].toFixed(2)}"`
+          ),
+        ].join(',')
+      })
+      .join('\n')
+
+    Share.open({
+      title: 'ImpactAI ' + new Date().toISOString(),
+      url: 'data:text/csv;base64,' + Buffer.from(csvData).toString('base64'),
+      type: 'text/csv',
+      showAppsToView: true,
+      filename: 'ImpactAI ' + new Date().toISOString(),
+    }).catch((_e: Error) => {
+      /* ignore */
+    })
+
+    console.info(csvData)
+  }, [orderedCollisions])
+
   return (
     <NativeBaseProvider>
       <ScrollView contentContainerStyle={{ paddingHorizontal: '8%' }}>
@@ -343,7 +372,7 @@ const App = () => {
 
         <HStack space={3} justifyContent='center'>
           <Configure config={config} setConfig={setConfig} />
-          <Button onPress={() => console.info('salvar')}>Salvar CSV</Button>
+          <Button onPress={save}>Salvar CSV</Button>
         </HStack>
 
         <View style={{ height: 30 }} />
