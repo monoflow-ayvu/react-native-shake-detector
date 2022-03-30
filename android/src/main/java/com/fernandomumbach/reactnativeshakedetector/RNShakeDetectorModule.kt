@@ -59,6 +59,8 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
         } catch (e: Exception) {
             promise.reject("Could not start ShakeService", e)
         }
+
+        promise.resolve(null)
     }
 
     @ReactMethod

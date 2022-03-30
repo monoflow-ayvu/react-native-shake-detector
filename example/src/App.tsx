@@ -1,6 +1,6 @@
+/* eslint-disable react-native/no-inline-styles */
 import {
   Box,
-  Button,
   Divider,
   FormControl,
   Heading,
@@ -10,9 +10,8 @@ import {
   View,
 } from 'native-base'
 import React, { useEffect } from 'react'
-import { PermissionsAndroid } from 'react-native'
+import { Alert, PermissionsAndroid } from 'react-native'
 import * as Shaker from 'react-native-shake-detector'
-const Sparkline: any = require('react-native-sparkline').default
 
 function PropInput({
   name,
@@ -65,8 +64,6 @@ function PropInput({
   )
 }
 
-const average = (arr: number[]) => arr.reduce((p, c) => p + c, 0) / arr.length
-
 const App = () => {
   const [loading, setLoading] = React.useState(true)
   const [maxSamples, setMaxSamples] = React.useState(50)
@@ -77,28 +74,25 @@ const App = () => {
   const [magnitudeThreshold, setMagnitudeThreshold] = React.useState(25)
   const [percentOverThresholdForShake, setPercentOverThresholdForShake] =
     React.useState(66)
-  const [magnitudes, setMagnitudes] = React.useState<number[]>(
-    new Array<number>(maxSamples).fill(0)
-  )
-
-  const onMagnitude = React.useCallback(
-    (val: number) => {
-      setMagnitudes((old) => [...old, val].slice(-maxSamples))
-    },
-    [maxSamples]
-  )
+  const [lastCollision, setCollision] = React.useState<{
+    at: Date
+    percentOverThreshold: number
+    classifications: Record<string, number>
+  } | null>(null)
 
   useEffect(() => {
     const listener = Shaker.onShake((ev) => {
-      console.info('on shake!')
-      console.info(ev)
-      onMagnitude(ev.percentOverThreshold * 100)
+      setCollision({
+        at: new Date(),
+        percentOverThreshold: ev.percentOverThreshold * 100,
+        classifications: ev.classifications,
+      })
     })
     setLoading(true)
 
     PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO)
       .then((granted) => {
-        if (!granted) {
+        if (granted !== 'granted') {
           throw new Error('Permission denied')
         }
       })
@@ -113,7 +107,7 @@ const App = () => {
         )
       )
       .then(() => setLoading(false))
-      .catch((e: Error) => console.error(e))
+      .catch((e: Error) => Alert.alert(String(e)))
 
     return () => {
       listener.remove()
@@ -123,9 +117,7 @@ const App = () => {
     magnitudeThreshold,
     maxSamples,
     minTimeBetweenSamplesMs,
-    onMagnitude,
     percentOverThresholdForShake,
-    setMagnitudes,
     visibleTimeRangeMs,
   ])
 
@@ -134,7 +126,42 @@ const App = () => {
       <ScrollView contentContainerStyle={{ paddingHorizontal: '8%' }}>
         <View style={{ height: 30 }} />
 
-        <Box>
+        <Box alignSelf='center'>
+          <Heading size='2xl' textAlign='center'>
+            {loading ? 'Cargando...' : 'ImpactAI'}
+          </Heading>
+          {lastCollision && (
+            <>
+              <Heading size='sm' textAlign='center'>
+                {lastCollision.at.toISOString()}
+              </Heading>
+              <Heading size='md' textAlign='center'>
+                {`${lastCollision.percentOverThreshold.toFixed(2)}%`}
+              </Heading>
+              {Object.keys(lastCollision.classifications)
+                .sort(
+                  (a, b) =>
+                    lastCollision.classifications[b] -
+                    lastCollision.classifications[a]
+                )
+                .map((key) => (
+                  <Heading size='sm' textAlign='center' key={key}>
+                    {`${key}: ${lastCollision.classifications[key] * 100}%`}
+                  </Heading>
+                ))}
+            </>
+          )}
+        </Box>
+
+        <View
+          style={{
+            height: 30,
+            borderBottomColor: 'gray',
+            borderBottomWidth: 1,
+          }}
+        />
+
+        <Box style={{ paddingTop: 30 }}>
           <PropInput
             value={maxSamples}
             cb={setMaxSamples}
@@ -177,16 +204,15 @@ const App = () => {
             name='Porcentaje sobre media de magnitud para impacto'
             help='Porcentaje mínimo del total de muestreos que tienen que superar la magnitud mínima para considerar un impacto'
           />
+        </Box>
 
-          <Box alignSelf='center'>
+        {/* <Box alignSelf='center'>
             <Heading size='2xl'>
               {loading ? 'Cargando...' : 'Impactos detectados'}
             </Heading>
             <Box alignSelf='center' alignContent='center' alignItems='center'>
               <Sparkline data={magnitudes}>
                 <Sparkline.Line />
-                {/* <Sparkline.Spots /> */}
-                {/* <Sparkline.Fill /> */}
               </Sparkline>
             </Box>
             <Heading size='sm' textAlign='center'>
@@ -216,7 +242,7 @@ const App = () => {
           >
             Reset
           </Button>
-        </Box>
+        </Box> */}
 
         <View style={{ height: 100 }} />
       </ScrollView>
