@@ -44,7 +44,7 @@ class ShakeEventSource(
         }
         .flatMap { return@flatMap process(it) }
         // max one event per second
-        .debounce(1, TimeUnit.SECONDS)
+        .throttleFirst(1, TimeUnit.SECONDS)
         .observeOn(Schedulers.computation())
         .share()
 
