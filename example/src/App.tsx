@@ -146,7 +146,9 @@ const App = () => {
                 )
                 .map((key) => (
                   <Heading size='sm' textAlign='center' key={key}>
-                    {`${key}: ${lastCollision.classifications[key] * 100}%`}
+                    {`${key}: ${(
+                      lastCollision.classifications[key] * 100
+                    ).toFixed(1)}%`}
                   </Heading>
                 ))}
             </>
