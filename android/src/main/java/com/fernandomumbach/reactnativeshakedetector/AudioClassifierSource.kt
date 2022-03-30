@@ -31,7 +31,7 @@ class AudioClassifierSource(
     private var handler: Handler // background thread handler to run classification
     private var classifier: AudioClassifier
     private var audioTensor: TensorAudio
-    private var record: AudioRecord
+    private var record: AudioRecord? = null
 
     init {
         // Create a handler to run classification in a background thread
@@ -41,8 +41,6 @@ class AudioClassifierSource(
 
         classifier = AudioClassifier.createFromFile(ctx, MODEL_FILE)
         audioTensor = classifier.createInputTensorAudio()
-        // Initialize the audio recorder
-        record = classifier.createAudioRecord()
     }
 
     private fun hasPermissions(): Boolean {
@@ -62,7 +60,12 @@ class AudioClassifierSource(
             throw Error("Audio classifier needs RECORD_AUDIO permission")
         }
 
-        record.startRecording()
+        if (record == null) {
+            // Initialize the audio recorder
+            record = classifier.createAudioRecord()
+        }
+
+        record!!.startRecording()
         shouldRun.set(true)
 
         // Define the classification runnable
@@ -114,7 +117,7 @@ class AudioClassifierSource(
 //        handler.removeCallbacksAndMessages(null)
         shouldRun.set(false)
         try {
-            record.stop()
+            record?.stop()
         } catch (e: Exception) {
             Log.e(TAG, "Error stopping audio record", e)
         }
