@@ -1,17 +1,34 @@
 /* eslint-disable react-native/no-inline-styles */
 import {
+  Actionsheet,
   Box,
+  Button,
+  Center,
   Divider,
   FormControl,
   Heading,
+  HStack,
   NativeBaseProvider,
   ScrollView,
   Slider,
+  Stack,
+  Text,
+  useDisclose,
   View,
+  VStack,
 } from 'native-base'
 import React, { useEffect } from 'react'
 import { Alert, PermissionsAndroid } from 'react-native'
 import * as Shaker from 'react-native-shake-detector'
+
+type Config = {
+  maxSamples: number
+  minTimeBetweenSamplesMs: number
+  visibleTimeRangeMs: number
+  magnitudeThreshold: number
+  percentOverThresholdForShake: number
+  useAudioClassifier: boolean
+}
 
 function PropInput({
   name,
@@ -64,29 +81,182 @@ function PropInput({
   )
 }
 
-const App = () => {
-  const [loading, setLoading] = React.useState(true)
-  const [maxSamples, setMaxSamples] = React.useState(50)
-  const [minTimeBetweenSamplesMs, setMinTimeBetweenSamplesMs] = React.useState(
-    1000 * 5
+function Configure({
+  config,
+  setConfig,
+}: {
+  config: Config
+  setConfig: React.Dispatch<React.SetStateAction<Config>>
+}) {
+  const { isOpen, onOpen, onClose } = useDisclose()
+
+  return (
+    <Center>
+      <Button onPress={() => onOpen()}>Configurar</Button>
+      <Actionsheet isOpen={isOpen} onClose={onClose}>
+        <Actionsheet.Content>
+          <ScrollView>
+            <PropInput
+              value={config.maxSamples}
+              cb={(val) => setConfig((c) => ({ ...c, maxSamples: val }))}
+              name='Cantidad máxima de muestreos'
+              min={1}
+              max={500}
+              step={1}
+              help='La cantidad máxima de muestreos que se guardan en el histórico para calcular colisiones'
+            />
+            <PropInput
+              value={config.minTimeBetweenSamplesMs}
+              cb={(val) =>
+                setConfig((c) => ({ ...c, minTimeBetweenSamplesMs: val }))
+              }
+              name='Tiempo mínimo entre muestreos (milisegundos)'
+              min={10}
+              max={20 * 1000}
+              step={10}
+              help='Tiempo mínimo a esperar para tomar un nuevo valor del acelerómetro'
+            />
+            <PropInput
+              value={config.visibleTimeRangeMs}
+              cb={(val) =>
+                setConfig((c) => ({ ...c, visibleTimeRangeMs: val }))
+              }
+              name='Rango de tiempo visible (milisegundos)'
+              min={10}
+              max={5 * 1000}
+              step={10}
+              help='Tiempo máximo a considerar un valor como parte del histórico (si se supera, el valor es ignorado al calcular colisión)'
+            />
+            <PropInput
+              value={config.magnitudeThreshold}
+              cb={(val) =>
+                setConfig((c) => ({ ...c, magnitudeThreshold: val }))
+              }
+              name='Magnitud mínima'
+              min={1}
+              max={200}
+              step={1}
+              help='Nivel mínimo de aceleración (fuerza G) para considerar una colisión'
+            />
+            <PropInput
+              value={config.percentOverThresholdForShake}
+              cb={(val) =>
+                setConfig((c) => ({ ...c, percentOverThresholdForShake: val }))
+              }
+              name='Porcentaje sobre media de magnitud para impacto'
+              help='Porcentaje mínimo del total de muestreos que tienen que superar la magnitud mínima para considerar un impacto'
+            />
+          </ScrollView>
+        </Actionsheet.Content>
+      </Actionsheet>
+    </Center>
   )
-  const [visibleTimeRangeMs, setVisibleTimeRangeMs] = React.useState(500)
-  const [magnitudeThreshold, setMagnitudeThreshold] = React.useState(25)
-  const [percentOverThresholdForShake, setPercentOverThresholdForShake] =
-    React.useState(66)
-  const [lastCollision, setCollision] = React.useState<{
+}
+
+function LogItem({
+  item,
+}: {
+  item: {
     at: Date
     percentOverThreshold: number
     classifications: Record<string, number>
-  } | null>(null)
+  }
+}) {
+  return (
+    <Box width='90%' alignItems='stretch'>
+      <Box
+        rounded='lg'
+        overflow='hidden'
+        borderColor='coolGray.200'
+        borderWidth='1'
+        _dark={{
+          borderColor: 'coolGray.600',
+          backgroundColor: 'gray.700',
+        }}
+        _web={{
+          shadow: 2,
+          borderWidth: 0,
+        }}
+        _light={{
+          backgroundColor: 'gray.50',
+        }}
+      >
+        <Stack p='4' space={3}>
+          <Stack space={2}>
+            <Heading size='md' ml='-1'>
+              {item.at.toLocaleTimeString()}
+            </Heading>
+            <Text
+              fontSize='xs'
+              _light={{
+                color: 'violet.500',
+              }}
+              _dark={{
+                color: 'violet.400',
+              }}
+              fontWeight='500'
+              ml='-0.5'
+              mt='-1'
+            >
+              Impacto de: {item.percentOverThreshold.toFixed(2)}%
+            </Text>
+          </Stack>
+          <Text fontWeight='400'>
+            {Object.keys(item.classifications).map((v, i) => (
+              <Text key={i}>
+                {v}: {(item.classifications[v] * 100).toFixed(1)}% {'\n'}
+              </Text>
+            ))}
+          </Text>
+          <HStack alignItems='center' space={4} justifyContent='space-between'>
+            <HStack alignItems='center'>
+              <Text
+                color='coolGray.600'
+                _dark={{
+                  color: 'warmGray.200',
+                }}
+                fontWeight='400'
+              >
+                {item.at.toISOString()}
+              </Text>
+            </HStack>
+          </HStack>
+        </Stack>
+      </Box>
+    </Box>
+  )
+}
+
+const App = () => {
+  const [loading, setLoading] = React.useState(true)
+  const [collisions, setCollisions] = React.useState<
+    {
+      at: Date
+      percentOverThreshold: number
+      classifications: Record<string, number>
+    }[]
+  >([])
+  const [config, setConfig] = React.useState({
+    maxSamples: 25,
+    minTimeBetweenSamplesMs: 1000 * 5,
+    visibleTimeRangeMs: 500,
+    magnitudeThreshold: 25,
+    percentOverThresholdForShake: 66,
+    useAudioClassifier: true,
+  })
 
   useEffect(() => {
     const listener = Shaker.onShake((ev) => {
-      setCollision({
-        at: new Date(),
-        percentOverThreshold: ev.percentOverThreshold * 100,
-        classifications: ev.classifications,
-      })
+      setCollisions((c) => [
+        ...c,
+        {
+          at: new Date(),
+          percentOverThreshold: ev.percentOverThreshold * 100,
+          classifications: Object.keys(ev.classifications)
+            .sort((a, b) => ev.classifications[b] - ev.classifications[a])
+            .reduce((acc, v) => ({ ...acc, [v]: ev.classifications[v] }), {}),
+        },
+      ])
     })
     setLoading(true)
 
@@ -98,12 +268,12 @@ const App = () => {
       })
       .then(() =>
         Shaker.start(
-          maxSamples,
-          minTimeBetweenSamplesMs,
-          visibleTimeRangeMs,
-          magnitudeThreshold,
-          percentOverThresholdForShake,
-          true // use audio classifier
+          config.maxSamples,
+          config.minTimeBetweenSamplesMs,
+          config.visibleTimeRangeMs,
+          config.magnitudeThreshold,
+          config.percentOverThresholdForShake,
+          config.useAudioClassifier
         )
       )
       .then(() => setLoading(false))
@@ -113,13 +283,29 @@ const App = () => {
       listener.remove()
       Shaker.stop().catch((e: Error) => console.error(e))
     }
-  }, [
-    magnitudeThreshold,
-    maxSamples,
-    minTimeBetweenSamplesMs,
-    percentOverThresholdForShake,
-    visibleTimeRangeMs,
-  ])
+  }, [config])
+
+  const orderedCollisions = React.useMemo(
+    () =>
+      collisions.sort((a, b) => {
+        if (a.at > b.at) {
+          return -1
+        }
+        if (a.at < b.at) {
+          return 1
+        }
+        return 0
+      }),
+    [collisions]
+  )
+
+  const lastCollision = React.useMemo(() => {
+    if (orderedCollisions.length === 0) {
+      return null
+    }
+    // return max by time
+    return orderedCollisions[0]
+  }, [orderedCollisions])
 
   return (
     <NativeBaseProvider>
@@ -138,19 +324,13 @@ const App = () => {
               <Heading size='md' textAlign='center'>
                 {`${lastCollision.percentOverThreshold.toFixed(2)}%`}
               </Heading>
-              {Object.keys(lastCollision.classifications)
-                .sort(
-                  (a, b) =>
-                    lastCollision.classifications[b] -
-                    lastCollision.classifications[a]
-                )
-                .map((key) => (
-                  <Heading size='sm' textAlign='center' key={key}>
-                    {`${key}: ${(
-                      lastCollision.classifications[key] * 100
-                    ).toFixed(1)}%`}
-                  </Heading>
-                ))}
+              {Object.keys(lastCollision.classifications).map((key) => (
+                <Heading size='sm' textAlign='center' key={key}>
+                  {`${key}: ${(
+                    lastCollision.classifications[key] * 100
+                  ).toFixed(1)}%`}
+                </Heading>
+              ))}
             </>
           )}
         </Box>
@@ -158,95 +338,23 @@ const App = () => {
         <View
           style={{
             height: 30,
-            borderBottomColor: 'gray',
-            borderBottomWidth: 1,
           }}
         />
 
-        <Box style={{ paddingTop: 30 }}>
-          <PropInput
-            value={maxSamples}
-            cb={setMaxSamples}
-            name='Cantidad máxima de muestreos'
-            min={1}
-            max={500}
-            step={1}
-            help='La cantidad máxima de muestreos que se guardan en el histórico para calcular colisiones'
-          />
-          <PropInput
-            value={minTimeBetweenSamplesMs}
-            cb={setMinTimeBetweenSamplesMs}
-            name='Tiempo mínimo entre muestreos (milisegundos)'
-            min={10}
-            max={20 * 1000}
-            step={10}
-            help='Tiempo mínimo a esperar para tomar un nuevo valor del acelerómetro'
-          />
-          <PropInput
-            value={visibleTimeRangeMs}
-            cb={setVisibleTimeRangeMs}
-            name='Rango de tiempo visible (milisegundos)'
-            min={10}
-            max={5 * 1000}
-            step={10}
-            help='Tiempo máximo a considerar un valor como parte del histórico (si se supera, el valor es ignorado al calcular colisión)'
-          />
-          <PropInput
-            value={magnitudeThreshold}
-            cb={setMagnitudeThreshold}
-            name='Magnitud mínima'
-            min={1}
-            max={200}
-            step={1}
-            help='Nivel mínimo de aceleración (fuerza G) para considerar una colisión'
-          />
-          <PropInput
-            value={percentOverThresholdForShake}
-            cb={setPercentOverThresholdForShake}
-            name='Porcentaje sobre media de magnitud para impacto'
-            help='Porcentaje mínimo del total de muestreos que tienen que superar la magnitud mínima para considerar un impacto'
-          />
-        </Box>
-
-        {/* <Box alignSelf='center'>
-            <Heading size='2xl'>
-              {loading ? 'Cargando...' : 'Impactos detectados'}
-            </Heading>
-            <Box alignSelf='center' alignContent='center' alignItems='center'>
-              <Sparkline data={magnitudes}>
-                <Sparkline.Line />
-              </Sparkline>
-            </Box>
-            <Heading size='sm' textAlign='center'>
-              (% sobre media de magnitud)
-            </Heading>
-
-            <View style={{ height: 30 }} />
-            <Heading textAlign='center'>
-              Total: {magnitudes.filter((m) => m > 0).length}
-            </Heading>
-            <Heading textAlign='center'>
-              Max: {Math.max(...magnitudes).toFixed(0)}%
-            </Heading>
-            <Heading textAlign='center'>
-              Avg: {average(magnitudes).toFixed(0)}%
-            </Heading>
-            <Heading textAlign='center'>
-              Min: {Math.min(...magnitudes).toFixed(0)}%
-            </Heading>
-          </Box>
-        </Box>
+        <HStack space={3} justifyContent='center'>
+          <Configure config={config} setConfig={setConfig} />
+          <Button onPress={() => console.info('salvar')}>Salvar CSV</Button>
+        </HStack>
 
         <View style={{ height: 30 }} />
-        <Box alignItems='center'>
-          <Button
-            onPress={() => setMagnitudes(new Array<number>(maxSamples).fill(0))}
-          >
-            Reset
-          </Button>
-        </Box> */}
 
-        <View style={{ height: 100 }} />
+        <VStack space={4} alignItems='center'>
+          {orderedCollisions.map((c) => (
+            <LogItem key={c.at.toISOString()} item={c} />
+          ))}
+        </VStack>
+
+        <View style={{ height: 30 }} />
       </ScrollView>
     </NativeBaseProvider>
   )
