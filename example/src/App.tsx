@@ -13,6 +13,7 @@ import {
   ScrollView,
   Slider,
   Stack,
+  Switch,
   Text,
   useDisclose,
   View,
@@ -235,6 +236,7 @@ const App = () => {
     {
       at: Date
       percentOverThreshold: number
+      isCritical: boolean
       classifications: Record<string, number>
     }[]
   >([])
@@ -246,23 +248,22 @@ const App = () => {
     percentOverThresholdForShake: 66,
     useAudioClassifier: true,
   })
+  const [useFilter, setUseFilter] = React.useState(false)
 
   useEffect(() => {
     const listener = Shaker.onShake((ev) => {
       const keys = Object.keys(ev.classifications)
-      console.info('keys', keys)
-      if (keys.includes('Fireworks') || keys.includes('Explosion')) {
-        setCollisions((c) => [
-          ...c,
-          {
-            at: new Date(),
-            percentOverThreshold: ev.percentOverThreshold * 100,
-            classifications: Object.keys(ev.classifications)
-              .sort((a, b) => ev.classifications[b] - ev.classifications[a])
-              .reduce((acc, v) => ({ ...acc, [v]: ev.classifications[v] }), {}),
-          },
-        ])
-      }
+      setCollisions((c) => [
+        ...c,
+        {
+          at: new Date(),
+          percentOverThreshold: ev.percentOverThreshold * 100,
+          isCritical: keys.includes('Fireworks') || keys.includes('Explosion'),
+          classifications: Object.keys(ev.classifications)
+            .sort((a, b) => ev.classifications[b] - ev.classifications[a])
+            .reduce((acc, v) => ({ ...acc, [v]: ev.classifications[v] }), {}),
+        },
+      ])
     })
     setLoading(true)
 
@@ -293,16 +294,18 @@ const App = () => {
 
   const orderedCollisions = React.useMemo(
     () =>
-      collisions.sort((a, b) => {
-        if (a.at > b.at) {
-          return -1
-        }
-        if (a.at < b.at) {
-          return 1
-        }
-        return 0
-      }),
-    [collisions]
+      collisions
+        .sort((a, b) => {
+          if (a.at > b.at) {
+            return -1
+          }
+          if (a.at < b.at) {
+            return 1
+          }
+          return 0
+        })
+        .filter((c) => (useFilter ? c.isCritical : true)),
+    [collisions, useFilter]
   )
 
   const lastCollision = React.useMemo(() => {
@@ -318,8 +321,9 @@ const App = () => {
       .map((v, i) => {
         const item = orderedCollisions[i]
         return [
-          item.at.toISOString(),
+          `"${item.at.toISOString()}"`,
           item.percentOverThreshold.toFixed(2),
+          item.isCritical ? 'YES' : 'NO',
           ...Object.keys(item.classifications).map(
             (k) => `"${k}=${item.classifications[k].toFixed(2)}"`
           ),
@@ -376,6 +380,7 @@ const App = () => {
 
         <HStack space={3} justifyContent='center'>
           <Configure config={config} setConfig={setConfig} />
+          <Switch value={useFilter} onValueChange={setUseFilter} />
           <Button onPress={save}>Salvar CSV</Button>
         </HStack>
 
