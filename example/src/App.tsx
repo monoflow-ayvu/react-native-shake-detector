@@ -158,7 +158,9 @@ function Configure({
 
 function LogItem({
   item,
+  filter,
 }: {
+  filter: boolean
   item: {
     at: Date
     percentOverThreshold: number
@@ -205,11 +207,17 @@ function LogItem({
             </Text>
           </Stack>
           <Text fontWeight='400'>
-            {Object.keys(item.classifications).map((v, i) => (
-              <Text key={i}>
-                {v}: {(item.classifications[v] * 100).toFixed(1)}% {'\n'}
-              </Text>
-            ))}
+            {Object.keys(item.classifications)
+              .filter((c) =>
+                filter
+                  ? c.includes('Explosion') || c.includes('Fireworks')
+                  : true
+              )
+              .map((v, i) => (
+                <Text key={i}>
+                  {v}: {(item.classifications[v] * 100).toFixed(1)}% {'\n'}
+                </Text>
+              ))}
           </Text>
           <HStack alignItems='center' space={4} justifyContent='space-between'>
             <HStack alignItems='center'>
@@ -388,7 +396,7 @@ const App = () => {
 
         <VStack space={4} alignItems='center'>
           {orderedCollisions.map((c) => (
-            <LogItem key={c.at.toISOString()} item={c} />
+            <LogItem key={c.at.toISOString()} item={c} filter={useFilter} />
           ))}
         </VStack>
 
