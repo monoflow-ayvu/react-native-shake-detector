@@ -249,16 +249,20 @@ const App = () => {
 
   useEffect(() => {
     const listener = Shaker.onShake((ev) => {
-      setCollisions((c) => [
-        ...c,
-        {
-          at: new Date(),
-          percentOverThreshold: ev.percentOverThreshold * 100,
-          classifications: Object.keys(ev.classifications)
-            .sort((a, b) => ev.classifications[b] - ev.classifications[a])
-            .reduce((acc, v) => ({ ...acc, [v]: ev.classifications[v] }), {}),
-        },
-      ])
+      const keys = Object.keys(ev.classifications)
+      console.info('keys', keys)
+      if (keys.includes('Fireworks') || keys.includes('Explosion')) {
+        setCollisions((c) => [
+          ...c,
+          {
+            at: new Date(),
+            percentOverThreshold: ev.percentOverThreshold * 100,
+            classifications: Object.keys(ev.classifications)
+              .sort((a, b) => ev.classifications[b] - ev.classifications[a])
+              .reduce((acc, v) => ({ ...acc, [v]: ev.classifications[v] }), {}),
+          },
+        ])
+      }
     })
     setLoading(true)
 
