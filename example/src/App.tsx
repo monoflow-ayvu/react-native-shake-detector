@@ -33,6 +33,13 @@ type Config = {
   useAudioClassifier: boolean
 }
 
+const COLLISION_FILTERS = ['Explosion', 'Fireworks', 'Skateboard']
+
+// util to find if a given string[] matches any of COLLISION_FILTERS
+function isCollisionFilter(filters: string[]) {
+  return filters.some((filter) => COLLISION_FILTERS.includes(filter))
+}
+
 function PropInput({
   name,
   value,
@@ -209,9 +216,7 @@ function LogItem({
           <Text fontWeight='400'>
             {Object.keys(item.classifications)
               .filter((c) =>
-                filter
-                  ? c.includes('Explosion') || c.includes('Fireworks')
-                  : true
+                filter ? COLLISION_FILTERS.indexOf(c) > -1 : true
               )
               .map((v, i) => (
                 <Text key={i}>
@@ -266,7 +271,7 @@ const App = () => {
         {
           at: new Date(),
           percentOverThreshold: ev.percentOverThreshold * 100,
-          isCritical: keys.includes('Fireworks') || keys.includes('Explosion'),
+          isCritical: isCollisionFilter(keys),
           classifications: Object.keys(ev.classifications)
             .sort((a, b) => ev.classifications[b] - ev.classifications[a])
             .reduce((acc, v) => ({ ...acc, [v]: ev.classifications[v] }), {}),
