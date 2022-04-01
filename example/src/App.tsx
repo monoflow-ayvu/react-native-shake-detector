@@ -33,7 +33,15 @@ type Config = {
   useAudioClassifier: boolean
 }
 
-const COLLISION_FILTERS = ['Explosion', 'Fireworks', 'Skateboard', 'Mechanisms']
+const COLLISION_FILTERS = [
+  'Explosion',
+  'Fireworks',
+  'Skateboard',
+  'Mechanisms',
+  'Whale vocalization',
+  'Roaring cats (lions, tigers)',
+  'Roar',
+]
 
 // given a map of classifications (keyed by classification name),
 // returns true if any of COLLISION_FILTERS has more than 0.4 (40%)
