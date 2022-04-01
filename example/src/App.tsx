@@ -35,9 +35,14 @@ type Config = {
 
 const COLLISION_FILTERS = ['Explosion', 'Fireworks', 'Skateboard']
 
-// util to find if a given string[] matches any of COLLISION_FILTERS
-function isCollisionFilter(filters: string[]) {
-  return filters.some((filter) => COLLISION_FILTERS.includes(filter))
+// given a map of classifications (keyed by classification name),
+// returns true if any of COLLISION_FILTERS has more than 0.4 (40%)
+// probability of being enabled
+function isCollision(classifications: { [key: string]: number }) {
+  return Object.keys(classifications).some((classification) => {
+    const probability = classifications[classification]
+    return COLLISION_FILTERS.includes(classification) && probability >= 0.4
+  })
 }
 
 function PropInput({
@@ -265,13 +270,12 @@ const App = () => {
 
   useEffect(() => {
     const listener = Shaker.onShake((ev) => {
-      const keys = Object.keys(ev.classifications)
       setCollisions((c) => [
         ...c,
         {
           at: new Date(),
           percentOverThreshold: ev.percentOverThreshold * 100,
-          isCritical: isCollisionFilter(keys),
+          isCritical: isCollision(ev.classifications),
           classifications: Object.keys(ev.classifications)
             .sort((a, b) => ev.classifications[b] - ev.classifications[a])
             .reduce((acc, v) => ({ ...acc, [v]: ev.classifications[v] }), {}),
