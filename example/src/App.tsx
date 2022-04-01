@@ -33,7 +33,7 @@ type Config = {
   useAudioClassifier: boolean
 }
 
-const COLLISION_FILTERS = ['Explosion', 'Fireworks', 'Skateboard']
+const COLLISION_FILTERS = ['Explosion', 'Fireworks', 'Skateboard', 'Mechanisms']
 
 // given a map of classifications (keyed by classification name),
 // returns true if any of COLLISION_FILTERS has more than 0.4 (40%)
@@ -149,7 +149,7 @@ function Configure({
               }
               name='Magnitud mínima'
               min={1}
-              max={200}
+              max={35}
               step={1}
               help='Nivel mínimo de aceleración (fuerza G) para considerar una colisión'
             />
@@ -262,7 +262,7 @@ const App = () => {
     maxSamples: 25,
     minTimeBetweenSamplesMs: 1000 * 5,
     visibleTimeRangeMs: 500,
-    magnitudeThreshold: 25,
+    magnitudeThreshold: 15,
     percentOverThresholdForShake: 66,
     useAudioClassifier: true,
   })
