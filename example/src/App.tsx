@@ -334,7 +334,8 @@ const App = () => {
       .map((v, i) => {
         const item = orderedCollisions[i]
         return [
-          `"${item.at.toISOString()}"`,
+          item.at.toLocaleDateString(),
+          item.at.toLocaleTimeString(),
           item.percentOverThreshold.toFixed(2),
           item.isCritical ? 'YES' : 'NO',
           ...Object.keys(item.classifications).map(
