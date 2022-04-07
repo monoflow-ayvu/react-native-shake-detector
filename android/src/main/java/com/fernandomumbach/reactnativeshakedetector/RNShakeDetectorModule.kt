@@ -2,6 +2,7 @@ package com.fernandomumbach.reactnativeshakedetector
 
 import android.content.Context
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.Looper
 import android.util.Log
 import com.facebook.react.bridge.*
@@ -18,8 +19,15 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
     private var mReactContext: ReactApplicationContext = reactContext
     private var mApplicationContext: Context = reactContext.applicationContext
     private var classifierV2: AudioClassifier = AudioClassifier(mApplicationContext)
+    private val mHandlerThread = HandlerThread("RecognitionHandlerThread")
+    private val mHandler: Handler
 
     override fun getName() = tag
+
+    init {
+        mHandlerThread.start()
+        mHandler = Handler(mHandlerThread.looper)
+    }
 
     @ReactMethod
     fun start(
@@ -79,6 +87,7 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
 
     override fun onHostDestroy() {
         internalStop()
+        mHandlerThread.quit()
     }
 
     private fun internalStart(
@@ -126,7 +135,7 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
     private fun onShakeEvent(sensorEvent: ShakeEvent) {
         Log.w(tag, "onShakeEvent " + sensorEvent.magnitude.toString())
         val eventWhen = Calendar.getInstance().timeInMillis
-        Handler(Looper.getMainLooper()).postDelayed(
+        mHandler.postDelayed(
             {
                 val ev = Arguments.createMap()
                 ev.putDouble("percentOverThreshold", sensorEvent.magnitude)
