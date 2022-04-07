@@ -57,8 +57,12 @@ class AudioClassifier(
         }
 
         lock.write {
-            record?.stop()
-            record?.release()
+            try {
+                record?.stop()
+                record?.release()
+            } catch (e: Exception) {
+                Log.e(tag, "could not release audio record, might be already released")
+            }
         }
     }
 
@@ -124,14 +128,18 @@ class AudioClassifier(
         }
 
         lock.write {
-            val tensor = audioTensors[audioTensorIdx]
-            tensor.load(record)
-            Log.i(
-                tag,
-                "onPeriodicNotification, tensor [${audioTensorIdx}] buffer size = ${tensor.tensorBuffer.flatSize}, record size (frames) = ${record.bufferSizeInFrames}, record sample rate = ${record.sampleRate}"
-            )
+            try {
+                val tensor = audioTensors[audioTensorIdx]
+                tensor.load(record)
+                Log.i(
+                    tag,
+                    "onPeriodicNotification, tensor [${audioTensorIdx}] buffer size = ${tensor.tensorBuffer.flatSize}, record size (frames) = ${record.bufferSizeInFrames}, record sample rate = ${record.sampleRate}"
+                )
 
-            audioTensorIdx = (audioTensorIdx + 1) % audioTensors.size
+                audioTensorIdx = (audioTensorIdx + 1) % audioTensors.size
+            } catch (e: Exception) {
+                Log.e(tag, "could not write audio buffer")
+            }
         }
     }
 }
