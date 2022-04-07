@@ -12,7 +12,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, RCTBridgeDelegate {
     initializeFlipper(with: application)
 
     let bridge = RCTBridge(delegate: self, launchOptions: launchOptions)
-    let rootView = RCTRootView(bridge: bridge!, moduleName: "example", initialProperties: nil)
+    let rootView = RCTRootView(bridge: bridge!, moduleName: "shakedetector", initialProperties: nil)
 
     if #available(iOS 13.0, *) {
       rootView.backgroundColor = UIColor.systemBackground
