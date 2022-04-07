@@ -37,6 +37,6 @@ export function onShake(
   return DeviceEventEmitter.addListener('shake', callback)
 }
 
-export function classify(): Promise<void> {
+export function classify(): Promise<Record<string, number>> {
   return RNShakeDetectorModule.classify()
 }

@@ -63,8 +63,10 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
 
     @ReactMethod
     fun classify(promise: Promise) {
-        classifierV2.classify()
-        promise.resolve(true)
+        val currentClassification = classifierV2.classify()
+        val values = Arguments.createMap()
+        currentClassification.forEach { (k, v) -> values.putDouble(k, v.toDouble()) }
+        promise.resolve(values)
     }
 
     override fun onHostResume() {
