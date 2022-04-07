@@ -1,40 +1,25 @@
 package com.fernandomumbach.reactnativeshakedetector
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import com.facebook.react.bridge.*
 import com.facebook.react.modules.core.DeviceEventManagerModule
-import io.reactivex.BackpressureOverflowStrategy
 import io.reactivex.disposables.Disposable
 import io.reactivex.processors.PublishProcessor
-import io.reactivex.schedulers.Schedulers
-import java.util.concurrent.TimeUnit
+import java.util.*
 import java.util.concurrent.atomic.AtomicReference
 
 class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext), LifecycleEventListener {
-    private val TAG = "RNShakeDetectorModule"
+    private val tag = "RNShakeDetectorModule"
     private val shakeEvents: AtomicReference<Disposable?> = AtomicReference(null)
     private var mReactContext: ReactApplicationContext = reactContext
     private var mApplicationContext: Context = reactContext.applicationContext
-    private var classifier: AudioClassifierSource
-    private var classifications = PublishProcessor.create<MutableMap<String, Float>>()
-    private var classificationPipeline = classifications.onBackpressureBuffer(100, {
-        Log.w(TAG, "classifications queue full!")
-    }, BackpressureOverflowStrategy.DROP_OLDEST)
-        .observeOn(Schedulers.computation())
-        .buffer(3, TimeUnit.SECONDS)
-        .map { items -> reduceClassificationsToMap(items) }
-        .onBackpressureDrop()
-        .share()
+    private var classifierV2: AudioClassifier = AudioClassifier(mApplicationContext)
 
-    override fun getName() = TAG
-
-    init {
-        classifier = AudioClassifierSource(mApplicationContext) {
-            classifications.offer(it)
-        }
-    }
+    override fun getName() = tag
 
     @ReactMethod
     fun start(
@@ -46,7 +31,7 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
         useAudioClassifier: Boolean = false,
         promise: Promise
     ) {
-        Log.w(TAG, "Starting shake event detector")
+        Log.w(tag, "Starting shake event detector")
         try {
             internalStart(
                 maxSamples,
@@ -65,13 +50,21 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
 
     @ReactMethod
     fun stop(promise: Promise) {
-        Log.w(TAG, "Stopping shake event detector")
+        classifierV2.stopRecording()
+
+        Log.w(tag, "Stopping shake event detector")
         try {
             internalStop()
             promise.resolve(true)
         } catch (e: Exception) {
             promise.reject("Could not stop ShakeService", e)
         }
+    }
+
+    @ReactMethod
+    fun classify(promise: Promise) {
+        classifierV2.classify()
+        promise.resolve(true)
     }
 
     override fun onHostResume() {
@@ -97,11 +90,11 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
         internalStop()
 
         if (useClassifier) {
-            Log.w(TAG, "initializeAudioClassifier")
-            classifier.start()
+            Log.w(tag, "initializeAudioClassifier")
+            classifierV2.startRecording()
         }
 
-        Log.w(TAG, "Starting new ShakeEventSource")
+        Log.w(tag, "Starting new ShakeEventSource")
         val source = ShakeEventSource(
             mApplicationContext,
             maxSamples.toLong(),
@@ -111,15 +104,15 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
             percentOverThresholdForShake,
         )
         shakeEvents.set(source.stream().subscribe({
-            Log.w(TAG, "detected shake event! " + it.magnitude.toString())
+            Log.w(tag, "detected shake event! " + it.magnitude.toString())
             onShakeEvent(it)
         }, {
-            Log.e(TAG, it.toString())
+            Log.e(tag, it.toString())
         }))
     }
 
     private fun internalStop() {
-        classifier.stop()
+        classifierV2.stopRecording()
         shakeEvents.get().let {
             if (it?.isDisposed == false) {
                 it.dispose()
@@ -129,40 +122,26 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
     }
 
     private fun onShakeEvent(sensorEvent: ShakeEvent) {
-        Log.w(TAG, "onShakeEvent " + sensorEvent.magnitude.toString())
-        mReactContext.let {
-            val ev = Arguments.createMap()
-            ev.putDouble("percentOverThreshold", sensorEvent.magnitude)
+        Log.w(tag, "onShakeEvent " + sensorEvent.magnitude.toString())
+        val eventWhen = Calendar.getInstance().timeInMillis
+        Handler(Looper.getMainLooper()).postDelayed(
+            {
+                val ev = Arguments.createMap()
+                ev.putDouble("percentOverThreshold", sensorEvent.magnitude)
+                ev.putDouble("when", eventWhen.toDouble())
 
-            Log.w(TAG, "before classification pipeline")
-            val currentValues = classificationPipeline.blockingLatest().first()
-            Log.w(TAG, "after classification pipeline $currentValues")
-            val values = Arguments.createMap()
-            currentValues.forEach { (k, v) -> values.putDouble(k, v.toDouble()) }
-            ev.putMap("classifications", values)
+                val currentClassification = classifierV2.classify()
+                val values = Arguments.createMap()
+                currentClassification.forEach { (k, v) -> values.putDouble(k, v.toDouble()) }
+                ev.putMap("classifications", values)
 
-            if (mReactContext.hasActiveReactInstance()) {
-                mReactContext
-                    .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                    .emit("shake", ev)
-            }
-        }
-    }
-
-    private fun reduceClassificationsToMap(items: Iterable<MutableMap<String, Float>>): MutableMap<String, Float> {
-        val m = mutableMapOf<String, Float>()
-        items.forEach {
-            it.forEach { (k, v) ->
-                if (!m.containsKey(k)) {
-                    m[k] = v
+                if (mReactContext.hasActiveReactInstance()) {
+                    mReactContext
+                        .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                        .emit("shake", ev)
                 }
-
-                if (v > m[k]!!) {
-                    m[k] = v
-                }
-            }
-        }
-
-        return m
+            },
+            2500 // wait for 2.5 seconds to collect more audio
+        )
     }
 }

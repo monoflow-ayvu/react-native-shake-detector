@@ -309,6 +309,12 @@ const App = () => {
         )
       )
       .then(() => setLoading(false))
+      .then(() => {
+        setInterval(() => {
+          console.log('running classification...')
+          Shaker.classify().then(() => console.log('done!'))
+        }, 5000)
+      })
       .catch((e: Error) => Alert.alert(String(e)))
 
     return () => {

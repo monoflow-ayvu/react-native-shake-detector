@@ -36,3 +36,7 @@ export function onShake(
 ): EmitterSubscription {
   return DeviceEventEmitter.addListener('shake', callback)
 }
+
+export function classify(): Promise<void> {
+  return RNShakeDetectorModule.classify()
+}
