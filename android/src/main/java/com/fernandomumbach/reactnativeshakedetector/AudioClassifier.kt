@@ -9,6 +9,10 @@ import android.util.Log
 import androidx.core.content.ContextCompat
 import org.tensorflow.lite.support.audio.TensorAudio
 import org.tensorflow.lite.task.audio.classifier.AudioClassifier
+import java.util.concurrent.locks.ReadWriteLock
+import java.util.concurrent.locks.ReentrantReadWriteLock
+import kotlin.concurrent.read
+import kotlin.concurrent.write
 
 class AudioClassifier(
     private val ctx: Context
@@ -19,6 +23,7 @@ class AudioClassifier(
     }
 
     private val tag = javaClass.simpleName
+    private val lock = ReentrantReadWriteLock()
     private var classifier: AudioClassifier =
         AudioClassifier.createFromFile(ctx, MODEL_FILE)
 
@@ -36,10 +41,12 @@ class AudioClassifier(
             throw Error("Audio classifier needs RECORD_AUDIO permission")
         }
 
-        record = classifier.createAudioRecord()
-        record!!.setRecordPositionUpdateListener(this)
-        record!!.positionNotificationPeriod = audioTensors[0].tensorBuffer.flatSize
-        record!!.startRecording()
+        lock.write {
+            record = classifier.createAudioRecord()
+            record!!.setRecordPositionUpdateListener(this)
+            record!!.positionNotificationPeriod = audioTensors[0].tensorBuffer.flatSize
+            record!!.startRecording()
+        }
     }
 
     fun stopRecording() {
@@ -49,35 +56,39 @@ class AudioClassifier(
             throw Error("Audio classifier needs RECORD_AUDIO permission")
         }
 
-        record?.stop()
-        record?.release()
+        lock.write {
+            record?.stop()
+            record?.release()
+        }
     }
 
     fun classify(): MutableMap<String, Float> {
         Log.i(tag, "classifying...")
-        val idx = audioTensorIdx
-        val tensors =
-            audioTensors.slice(
-                IntRange(
-                    idx,
-                    audioTensors.size - 1
-                )
-            ) + audioTensors.slice(IntRange(0, idx))
-
         val m = mutableMapOf<String, Float>()
-        tensors.forEach tensorLoop@{ element ->
-            val output = classifier.classify(element)
-            output[0].categories.forEach categoryLoop@{
-                if (it.score < MINIMUM_DISPLAY_THRESHOLD) {
-                    return@categoryLoop
-                }
+        lock.read {
+            val idx = audioTensorIdx
+            val tensors =
+                audioTensors.slice(
+                    IntRange(
+                        idx,
+                        audioTensors.size - 1
+                    )
+                ) + audioTensors.slice(IntRange(0, idx))
 
-                if (!m.containsKey(it.label)) {
-                    m[it.label] = it.score
-                }
+            tensors.forEach tensorLoop@{ element ->
+                val output = classifier.classify(element)
+                output[0].categories.forEach categoryLoop@{
+                    if (it.score < MINIMUM_DISPLAY_THRESHOLD) {
+                        return@categoryLoop
+                    }
 
-                if (it.score > m[it.label]!!) {
-                    m[it.label] = it.score
+                    if (!m.containsKey(it.label)) {
+                        m[it.label] = it.score
+                    }
+
+                    if (it.score > m[it.label]!!) {
+                        m[it.label] = it.score
+                    }
                 }
             }
         }
@@ -103,20 +114,24 @@ class AudioClassifier(
 
     override fun onPeriodicNotification(record: AudioRecord?) {
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.N) {
+            Log.e(tag, "SDK version too low to run classifier")
             return
         }
 
         if (record == null) {
+            Log.e(tag, "No record given. Cannot add it to buffer.")
             return
         }
 
-        val tensor = audioTensors[audioTensorIdx]
-        tensor.load(record)
-        Log.i(
-            tag,
-            "onPeriodicNotification, tensor [${audioTensorIdx}] buffer size = ${tensor.tensorBuffer.flatSize}, record size (frames) = ${record.bufferSizeInFrames}, record sample rate = ${record.sampleRate}"
-        )
+        lock.write {
+            val tensor = audioTensors[audioTensorIdx]
+            tensor.load(record)
+            Log.i(
+                tag,
+                "onPeriodicNotification, tensor [${audioTensorIdx}] buffer size = ${tensor.tensorBuffer.flatSize}, record size (frames) = ${record.bufferSizeInFrames}, record sample rate = ${record.sampleRate}"
+            )
 
-        audioTensorIdx = (audioTensorIdx + 1) % audioTensors.size
+            audioTensorIdx = (audioTensorIdx + 1) % audioTensors.size
+        }
     }
 }
