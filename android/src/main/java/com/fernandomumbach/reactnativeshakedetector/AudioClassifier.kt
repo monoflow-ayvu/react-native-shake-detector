@@ -28,7 +28,7 @@ class AudioClassifier(
         AudioClassifier.createFromFile(ctx, MODEL_FILE)
 
     // each audio tensor is approx 1 second
-    private var audioTensors: Array<TensorAudio> = Array(5) {
+    private var audioTensors: Array<TensorAudio> = Array(14) {
         classifier.createInputTensorAudio()
     }
     private var audioTensorIdx: Int = 0
@@ -44,7 +44,8 @@ class AudioClassifier(
         lock.write {
             record = classifier.createAudioRecord()
             record!!.setRecordPositionUpdateListener(this)
-            record!!.positionNotificationPeriod = audioTensors[0].tensorBuffer.flatSize
+            // sample rate = 1 second, so we use half of that (500ms)
+            record!!.positionNotificationPeriod = record!!.sampleRate / 2
             record!!.startRecording()
         }
     }
