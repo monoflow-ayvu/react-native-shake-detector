@@ -32,13 +32,13 @@ class ShakeEventSource(
     private val flowable: Flowable<ShakeEvent> = RxSensor
         .sensorEvent(ctx, Sensor.TYPE_ACCELEROMETER, SensorManager.SENSOR_DELAY_FASTEST)
         .subscribeOn(Schedulers.computation())
-        .filter(RxSensorFilter.minAccuracy(SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM))
+//        .filter(RxSensorFilter.minAccuracy(SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM))
+        .distinctUntilChanged(RxSensorFilter.uniqueEventValues())
         .onBackpressureBuffer(
             maxSamples,
             { Log.w(TAG, "dropped item!") },
             BackpressureOverflowStrategy.DROP_OLDEST
         )
-        .distinctUntilChanged(RxSensorFilter.uniqueEventValues())
         .filter {
             return@filter it.sensor.type == Sensor.TYPE_ACCELEROMETER
         }
