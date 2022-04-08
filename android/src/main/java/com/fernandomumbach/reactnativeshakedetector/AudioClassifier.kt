@@ -9,26 +9,23 @@ import android.util.Log
 import androidx.core.content.ContextCompat
 import org.tensorflow.lite.support.audio.TensorAudio
 import org.tensorflow.lite.task.audio.classifier.AudioClassifier
-import java.util.concurrent.locks.ReadWriteLock
-import java.util.concurrent.locks.ReentrantReadWriteLock
-import kotlin.concurrent.read
-import kotlin.concurrent.write
 
 class AudioClassifier(
     private val ctx: Context
 ) : AudioRecord.OnRecordPositionUpdateListener {
     companion object {
         const val MODEL_FILE = "yamnet.tflite"
-        const val MINIMUM_DISPLAY_THRESHOLD = 0.3F
+        const val MINIMUM_DISPLAY_THRESHOLD = 0.1F
+        const val SECONDS = 4
+        const val SECONDS_FACTOR = 10
     }
 
     private val tag = javaClass.simpleName
-    private val lock = ReentrantReadWriteLock()
     private var classifier: AudioClassifier =
         AudioClassifier.createFromFile(ctx, MODEL_FILE)
 
     // each audio tensor is approx 1 second
-    private var audioTensors: Array<TensorAudio> = Array(14) {
+    private var audioTensors: Array<TensorAudio> = Array(SECONDS * SECONDS_FACTOR) {
         classifier.createInputTensorAudio()
     }
     private var audioTensorIdx: Int = 0
@@ -41,13 +38,11 @@ class AudioClassifier(
             throw Error("Audio classifier needs RECORD_AUDIO permission")
         }
 
-        lock.write {
-            record = classifier.createAudioRecord()
-            record!!.setRecordPositionUpdateListener(this)
-            // sample rate = 1 second, so we use half of that (500ms)
-            record!!.positionNotificationPeriod = record!!.sampleRate / 2
-            record!!.startRecording()
-        }
+        record = classifier.createAudioRecord()
+        record!!.setRecordPositionUpdateListener(this)
+        // sample rate = 1 second
+        record!!.positionNotificationPeriod = record!!.sampleRate / SECONDS_FACTOR
+        record!!.startRecording()
     }
 
     fun stopRecording() {
@@ -57,43 +52,39 @@ class AudioClassifier(
             throw Error("Audio classifier needs RECORD_AUDIO permission")
         }
 
-        lock.write {
-            try {
-                record?.stop()
-                record?.release()
-            } catch (e: Exception) {
-                Log.e(tag, "could not release audio record, might be already released")
-            }
+        try {
+            record?.stop()
+            record?.release()
+        } catch (e: Exception) {
+            Log.e(tag, "could not release audio record, might be already released")
         }
     }
 
     fun classify(): MutableMap<String, Float> {
         Log.i(tag, "classifying...")
         val m = mutableMapOf<String, Float>()
-        lock.read {
-            val idx = audioTensorIdx
-            val tensors =
-                audioTensors.slice(
-                    IntRange(
-                        idx,
-                        audioTensors.size - 1
-                    )
-                ) + audioTensors.slice(IntRange(0, idx))
+        val idx = audioTensorIdx
+        val tensors =
+            audioTensors.slice(
+                IntRange(
+                    idx,
+                    audioTensors.size - 1
+                )
+            ) + audioTensors.slice(IntRange(0, idx))
 
-            tensors.forEach tensorLoop@{ element ->
-                val output = classifier.classify(element)
-                output[0].categories.forEach categoryLoop@{
-                    if (it.score < MINIMUM_DISPLAY_THRESHOLD) {
-                        return@categoryLoop
-                    }
+        tensors.forEach tensorLoop@{ element ->
+            val output = classifier.classify(element)
+            output[0].categories.forEach categoryLoop@{
+                if (it.score < MINIMUM_DISPLAY_THRESHOLD) {
+                    return@categoryLoop
+                }
 
-                    if (!m.containsKey(it.label)) {
-                        m[it.label] = it.score
-                    }
+                if (!m.containsKey(it.label)) {
+                    m[it.label] = it.score
+                }
 
-                    if (it.score > m[it.label]!!) {
-                        m[it.label] = it.score
-                    }
+                if (it.score > m[it.label]!!) {
+                    m[it.label] = it.score
                 }
             }
         }
@@ -128,19 +119,17 @@ class AudioClassifier(
             return
         }
 
-        lock.write {
-            try {
-                val tensor = audioTensors[audioTensorIdx]
-                tensor.load(record)
-                Log.i(
-                    tag,
-                    "onPeriodicNotification, tensor [${audioTensorIdx}] buffer size = ${tensor.tensorBuffer.flatSize}, record size (frames) = ${record.bufferSizeInFrames}, record sample rate = ${record.sampleRate}"
-                )
+        try {
+            val tensor = audioTensors[audioTensorIdx]
+            tensor.load(record)
+            Log.i(
+                tag,
+                "onPeriodicNotification, tensor [${audioTensorIdx}] buffer size = ${tensor.tensorBuffer.flatSize}, record size (frames) = ${record.bufferSizeInFrames}, record sample rate = ${record.sampleRate}"
+            )
 
-                audioTensorIdx = (audioTensorIdx + 1) % audioTensors.size
-            } catch (e: Exception) {
-                Log.e(tag, "could not write audio buffer")
-            }
+            audioTensorIdx = (audioTensorIdx + 1) % audioTensors.size
+        } catch (e: Exception) {
+            Log.e(tag, "could not write audio buffer")
         }
     }
 }

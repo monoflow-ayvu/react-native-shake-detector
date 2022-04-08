@@ -41,6 +41,7 @@ const COLLISION_FILTERS = [
   'Whale vocalization',
   'Roaring cats (lions, tigers)',
   'Roar',
+  'Printer',
 ]
 
 // given a map of classifications (keyed by classification name),

@@ -152,7 +152,7 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
                         .emit("shake", ev)
                 }
             },
-            2500 // wait for 2.5 seconds to collect more audio
+            1300 // wait for 1.3 seconds to collect more audio
         )
     }
 }
