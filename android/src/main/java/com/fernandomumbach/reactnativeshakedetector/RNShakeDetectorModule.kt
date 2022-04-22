@@ -7,9 +7,11 @@ import android.os.Looper
 import android.util.Log
 import com.facebook.react.bridge.*
 import com.facebook.react.modules.core.DeviceEventManagerModule
+import com.gvillani.rxsensors.RxSensorEvent
 import io.reactivex.disposables.Disposable
 import io.reactivex.processors.PublishProcessor
 import java.util.*
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
 class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
@@ -21,12 +23,18 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
     private var classifierV2: AudioClassifier = AudioClassifier(mApplicationContext)
     private val mHandlerThread = HandlerThread("RecognitionHandlerThread")
     private val mHandler: Handler
+    private val mRawHandlerThread = HandlerThread("RawRecognitionHandlerThread")
+    private val mRawHandler: Handler
+    private var rawSub: Disposable? = null
 
     override fun getName() = tag
 
     init {
         mHandlerThread.start()
         mHandler = Handler(mHandlerThread.looper)
+
+        mRawHandlerThread.start()
+        mRawHandler = Handler(mRawHandlerThread.looper)
     }
 
     @ReactMethod
@@ -88,6 +96,7 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
     override fun onHostDestroy() {
         internalStop()
         mHandlerThread.quit()
+        mRawHandlerThread.quit()
     }
 
     private fun internalStart(
@@ -118,8 +127,14 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
             Log.w(tag, "detected shake event! " + it.magnitude.toString())
             onShakeEvent(it)
         }, {
-            Log.e(tag, it.toString())
+            Log.e(tag, "Error detecting shake events", it)
         }))
+        rawSub = source.rawStream().buffer(1, TimeUnit.SECONDS).subscribe({
+            Log.d(tag, "raw time reached! total = ${it.size}")
+            onRawEvents(it)
+        }, {
+            Log.e(tag, "Error reading raw values", it)
+        })
     }
 
     private fun internalStop() {
@@ -129,6 +144,9 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
                 it.dispose()
             }
             shakeEvents.set(null)
+        }
+        if (rawSub?.isDisposed == false) {
+            rawSub?.dispose()
         }
     }
 
@@ -154,5 +172,27 @@ class RNShakeDetectorModule(reactContext: ReactApplicationContext) :
             },
             1300 // wait for 1.3 seconds to collect more audio
         )
+    }
+
+    private fun onRawEvents(events: List<RxSensorEvent>) {
+        mRawHandler.post {
+            val ev = Arguments.createArray()
+
+            for (event in events) {
+                val m = Arguments.createMap()
+                m.putDouble("ts", event.timestamp.toDouble())
+                m.putDouble("x", event.values[0].toDouble())
+                m.putDouble("y", event.values[0].toDouble())
+                m.putDouble("z", event.values[0].toDouble())
+                m.putInt("accuracy", event.accuracy)
+                ev.pushMap(m)
+            }
+
+            if (mReactContext.hasActiveReactInstance()) {
+                mReactContext
+                    .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                    .emit("rawShakeData", ev)
+            }
+        }
     }
 }

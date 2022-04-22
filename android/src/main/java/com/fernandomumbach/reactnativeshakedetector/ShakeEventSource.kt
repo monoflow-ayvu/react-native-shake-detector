@@ -29,7 +29,7 @@ class ShakeEventSource(
     private var mCurrentIndex = 0
     private var mMagnitudes = DoubleArray(maxSamples.toInt())
     private var mTimestamps = LongArray(maxSamples.toInt())
-    private val flowable: Flowable<ShakeEvent> = RxSensor
+    private val accelEventsSource: Flowable<RxSensorEvent> = RxSensor
         .sensorEvent(ctx, Sensor.TYPE_ACCELEROMETER, SensorManager.SENSOR_DELAY_FASTEST)
         .subscribeOn(Schedulers.computation())
 //        .filter(RxSensorFilter.minAccuracy(SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM))
@@ -42,6 +42,8 @@ class ShakeEventSource(
         .filter {
             return@filter it.sensor.type == Sensor.TYPE_ACCELEROMETER
         }
+        .share()
+    private val flowable: Flowable<ShakeEvent> = accelEventsSource
         .flatMap { return@flatMap process(it) }
         // max one event per second
         .throttleFirst(1, TimeUnit.SECONDS)
@@ -96,5 +98,9 @@ class ShakeEventSource(
 
     fun stream(): Flowable<ShakeEvent> {
         return flowable
+    }
+
+    fun rawStream(): Flowable<RxSensorEvent> {
+        return accelEventsSource
     }
 }

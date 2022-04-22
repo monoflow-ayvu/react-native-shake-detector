@@ -37,6 +37,20 @@ export function onShake(
   return DeviceEventEmitter.addListener('shake', callback)
 }
 
+export function onRawData(
+  callback: (
+    ev: {
+      timestamp: number
+      x: number
+      y: number
+      z: number
+      accuracy: number
+    }[]
+  ) => void
+): EmitterSubscription {
+  return DeviceEventEmitter.addListener('rawShakeData', callback)
+}
+
 export function classify(): Promise<Record<string, number>> {
   return RNShakeDetectorModule.classify()
 }

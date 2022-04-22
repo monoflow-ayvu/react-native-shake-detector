@@ -291,6 +291,9 @@ const App = () => {
         },
       ])
     })
+    const listener2 = Shaker.onRawData((ev) => {
+      console.log(ev)
+    })
     setLoading(true)
 
     PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO)
@@ -314,6 +317,7 @@ const App = () => {
 
     return () => {
       listener.remove()
+      listener2.remove()
       Shaker.stop().catch((e: Error) => console.error(e))
     }
   }, [config])

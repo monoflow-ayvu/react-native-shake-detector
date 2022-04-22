@@ -73,19 +73,23 @@ class AudioClassifier(
             ) + audioTensors.slice(IntRange(0, idx))
 
         tensors.forEach tensorLoop@{ element ->
-            val output = classifier.classify(element)
-            output[0].categories.forEach categoryLoop@{
-                if (it.score < MINIMUM_DISPLAY_THRESHOLD) {
-                    return@categoryLoop
-                }
+            try {
+                val output = classifier.classify(element)
+                output[0].categories.forEach categoryLoop@{
+                    if (it.score < MINIMUM_DISPLAY_THRESHOLD) {
+                        return@categoryLoop
+                    }
 
-                if (!m.containsKey(it.label)) {
-                    m[it.label] = it.score
-                }
+                    if (!m.containsKey(it.label)) {
+                        m[it.label] = it.score
+                    }
 
-                if (it.score > m[it.label]!!) {
-                    m[it.label] = it.score
+                    if (it.score > m[it.label]!!) {
+                        m[it.label] = it.score
+                    }
                 }
+            } catch (e: Exception) {
+                Log.e(tag, "error classifying buffer", e)
             }
         }
 
