@@ -13,7 +13,7 @@
   "dependencies": {
     "buffer": "^6.0.3",
     "native-base": "^3.3.4",
-    "react": "^17.0.2",
+    "react": "^18.0.0",
     "react-native": "^0.67.1",
     "react-native-safe-area-context": "^3.3.2",
     "react-native-share": "^7.3.7",
@@ -31,11 +31,11 @@
     "eslint-plugin-simple-import-sort": "^7.0.0",
     "jest": "^27.4.7",
     "metro-react-native-babel-preset": "^0.67.0",
-    "react-test-renderer": "^17.0.2",
+    "react-test-renderer": "^18.0.0",
     "typescript": "^4.5.5"
   },
   "resolutions": {
-    "@types/react": "^17"
+    "@types/react": "^18.0.0"
   },
   "jest": {
     "preset": "react-native",
