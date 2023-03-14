@@ -50,7 +50,3 @@ export function onRawData(
 ): EmitterSubscription {
   return DeviceEventEmitter.addListener('rawShakeData', callback)
 }
-
-export function classify(): Promise<Record<string, number>> {
-  return RNShakeDetectorModule.classify()
-}

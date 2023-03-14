@@ -35,10 +35,6 @@ android {
         minSdkVersion safeExtGet('minSdkVersion', 23)
         targetSdkVersion safeExtGet('targetSdkVersion', 31)
     }
-
-    aaptOptions {
-        noCompress "tflite"
-    }
 }
 
 repositories {
@@ -55,16 +51,4 @@ dependencies {
     implementation "io.reactivex.rxjava2:rxandroid:2.1.1"
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.1"
     implementation 'com.github.Joseph82:RxSensors:7086165880'
-
-    // Import the Audio Task Library dependency (NNAPI is included)
-    implementation 'org.tensorflow:tensorflow-lite-task-audio:0.3.0'
-    // Import the GPU delegate plugin Library for GPU inference
-    implementation 'org.tensorflow:tensorflow-lite-gpu-delegate-plugin:0.3.0'
 }
-
-// import DownloadModels task
-project.ext.ASSET_DIR = projectDir.toString() + '/src/main/assets'
-
-// Download default models; if you wish to use your own models then
-// place them in the "assets" directory and comment out below line.
-apply from: 'download_model.gradle'
