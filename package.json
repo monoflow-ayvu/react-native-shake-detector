@@ -1,6 +1,6 @@
 {
   "name": "react-native-shake-detector",
-  "version": "2.2.0",
+  "version": "3.0.0",
   "description": "",
   "homepage": "https://github.com/monoflow-ayvu/react-native-shake-detector",
   "main": "lib/index.js",
