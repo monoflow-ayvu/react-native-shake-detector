@@ -25,7 +25,6 @@ def safeExtGet(prop, fallback) {
 
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
-apply plugin: 'kotlin-android-extensions'
 
 android {
     compileSdkVersion safeExtGet('compileSdkVersion', 31)
@@ -34,6 +33,10 @@ android {
     defaultConfig {
         minSdkVersion safeExtGet('minSdkVersion', 23)
         targetSdkVersion safeExtGet('targetSdkVersion', 31)
+    }
+
+    buildFeatures {
+        viewBinding true
     }
 }
 
