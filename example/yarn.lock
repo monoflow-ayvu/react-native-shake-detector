@@ -2095,11 +2095,11 @@
     "@types/react" "*"
 
 "@types/react-test-renderer@^17.0.1":
-  version "17.0.1"
-  resolved "https://registry.yarnpkg.com/@types/react-test-renderer/-/react-test-renderer-17.0.1.tgz#3120f7d1c157fba9df0118dae20cb0297ee0e06b"
-  integrity sha512-3Fi2O6Zzq/f3QR9dRnlnHso9bMl7weKCviFmfF6B4LS1Uat6Hkm15k0ZAQuDz+UBq6B3+g+NM6IT2nr5QgPzCw==
+  version "17.0.10"
+  resolved "https://registry.yarnpkg.com/@types/react-test-renderer/-/react-test-renderer-17.0.10.tgz#4327fd873ec40332fa4cf901bc925ffdc7e93c0d"
+  integrity sha512-806egdSF6UPpsKD/RpzIEwJ2LaT/WAYpHb3gwfSvmHiI4hh7b51xJ4pXnF+MnsoQsCuewOQbuO9IoWvaigg6jQ==
   dependencies:
-    "@types/react" "*"
+    "@types/react" "^17"
 
 "@types/react@*", "@types/react@^17":
   version "17.0.38"
